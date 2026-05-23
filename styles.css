@@ -65,6 +65,11 @@ body {
   scrollbar-width: none;
 }
 
+/* General Display Utilities */
+.hidden {
+  display: none !important;
+}
+
 /* Ambient Glow Background Blobs */
 .glow-blob {
   position: absolute;
@@ -107,7 +112,7 @@ body {
 /* App Container Grid */
 .app-container {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr auto;
   height: 100vh;
   max-width: 480px; /* Standard premium mobile view width */
   margin: 0 auto;
@@ -131,8 +136,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  margin: 12px 16px 6px;
+  padding: 12px 18px;
+  margin: 10px 16px 4px;
   border-radius: 20px;
   z-index: 10;
 }
@@ -154,7 +159,7 @@ body {
 }
 
 .logo h1 {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.5px;
   color: var(--text-bright);
@@ -175,8 +180,8 @@ body {
   border: none;
   color: var(--text-normal);
   cursor: pointer;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -202,27 +207,39 @@ body {
   transform: scale(0.9);
 }
 
-/* Stats Drawer */
-.stats-drawer {
-  margin: 0 16px 6px;
-  padding: 16px;
+/* Glowing quick add button */
+.add-card-btn {
+  background: var(--accent-primary) !important;
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 0 12px var(--accent-primary-glow) !important;
+}
+
+.add-card-btn:active {
+  box-shadow: 0 0 20px var(--accent-primary) !important;
+}
+
+/* Permanent Integrated Stats Dashboard */
+.stats-dashboard {
+  margin: 0 16px 4px;
+  padding: 10px 14px;
   border-radius: 20px;
-  animation: slideDown var(--transition-smooth);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.06);
   overflow: hidden;
+  z-index: 5;
 }
 
 .stats-grid {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 20px;
+  gap: 16px;
   align-items: center;
 }
 
 .radial-progress-container {
   position: relative;
-  width: 90px;
-  height: 90px;
+  width: 70px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -237,13 +254,13 @@ body {
 .ring-bg {
   fill: none;
   stroke: rgba(255, 255, 255, 0.04);
-  stroke-width: 6px;
+  stroke-width: 7px;
 }
 
 .ring-fg {
   fill: none;
   stroke: var(--accent-secondary);
-  stroke-width: 6px;
+  stroke-width: 7px;
   stroke-linecap: round;
   stroke-dasharray: 251.2; /* 2 * pi * r (r=40) */
   stroke-dashoffset: 251.2;
@@ -259,46 +276,47 @@ body {
 }
 
 .radial-text span {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-bright);
+  line-height: 1.1;
 }
 
 .radial-text label {
-  font-size: 8px;
+  font-size: 7px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   color: var(--text-muted);
 }
 
 .text-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .stat-card {
   background: rgba(255, 255, 255, 0.01);
   border: 1px solid rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
-  padding: 10px 4px;
+  border-radius: 10px;
+  padding: 8px 2px;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .stat-num {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-bright);
 }
 
 .stat-label {
-  font-size: 9px;
+  font-size: 8px;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
 }
 
 .color-learned {
@@ -311,10 +329,10 @@ body {
 /* Category Navigation Scroll */
 .category-nav {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
-  padding: 4px 16px 10px;
-  margin-top: 4px;
+  padding: 4px 16px 8px;
+  margin-top: 2px;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
@@ -323,9 +341,9 @@ body {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 30px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
@@ -341,7 +359,7 @@ body {
   background: var(--glass-surface);
   border-color: var(--accent-primary);
   color: var(--text-bright);
-  box-shadow: 0 0 12px var(--accent-primary-glow);
+  box-shadow: 0 0 10px var(--accent-primary-glow);
 }
 
 /* Card Arena */
@@ -349,39 +367,41 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 16px;
+  padding: 6px 16px;
   position: relative;
   overflow: hidden;
+  height: 100%;
 }
 
 /* Deck Completion View */
 .completion-card {
   border-radius: 24px;
-  padding: 30px 24px;
+  padding: 24px 20px;
   text-align: center;
-  max-width: 360px;
+  max-width: 340px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   animation: zoomIn 0.5s var(--ease-elastic);
   border-color: var(--color-success-glow);
+  z-index: 5;
 }
 
 .completion-icon {
-  font-size: 48px;
+  font-size: 40px;
   animation: bounce 2s infinite ease-in-out;
 }
 
 .completion-card h2 {
-  font-size: 22px;
+  font-size: 20px;
   color: var(--text-bright);
   font-weight: 700;
 }
 
 .completion-card p {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--text-normal);
 }
 
@@ -389,8 +409,8 @@ body {
 .flashcard-container {
   width: 100%;
   height: 100%;
-  max-height: 420px;
-  aspect-ratio: 4 / 5;
+  max-height: 380px; /* Reduced for ultra compact scroll-free fit */
+  aspect-ratio: 1.1 / 1.35;
   perspective: 1000px;
   position: relative;
 }
@@ -416,7 +436,7 @@ body {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: 24px;
-  padding: 24px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -438,9 +458,9 @@ body {
 .card-tag {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -450,7 +470,7 @@ body {
 .card-back-header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .card-action-icon-btn {
@@ -458,8 +478,8 @@ body {
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -480,14 +500,14 @@ body {
 }
 
 .card-action-icon-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 .card-status {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  padding: 4px 8px;
+  padding: 3px 6px;
   border-radius: 8px;
   letter-spacing: 0.5px;
 }
@@ -517,7 +537,7 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .card-content-wrapper.scrollable-content {
@@ -525,14 +545,14 @@ body {
   align-items: stretch;
   overflow-y: auto;
   padding-right: 4px;
-  gap: 16px;
-  margin-top: 10px;
+  gap: 12px;
+  margin-top: 8px;
 }
 
 /* Front Word */
 .card-title {
   font-family: 'Playfair Display', serif;
-  font-size: 38px;
+  font-size: 32px;
   font-weight: 600;
   color: var(--text-bright);
   letter-spacing: -0.5px;
@@ -542,7 +562,7 @@ body {
 .card-pronunciation {
   font-family: system-ui, sans-serif;
   color: var(--text-muted);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 300;
 }
 
@@ -551,36 +571,36 @@ body {
   align-items: center;
   gap: 6px;
   color: var(--text-muted);
-  font-size: 11px;
-  margin-top: 16px;
+  font-size: 10px;
+  margin-top: 12px;
   animation: pulseOpacity 2.5s infinite ease-in-out;
 }
 
 .tap-indicator svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 /* Back Word */
 .card-title-back {
   font-family: 'Playfair Display', serif;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--accent-secondary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding-bottom: 8px;
+  padding-bottom: 6px;
   text-align: left;
 }
 
 .meaning-box, .example-box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   text-align: left;
 }
 
 .meaning-box label, .example-box label {
-  font-size: 9px;
+  font-size: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
@@ -588,20 +608,20 @@ body {
 }
 
 .meaning-box p {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--text-bright);
 }
 
 .example-box blockquote {
   font-family: 'Playfair Display', serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--text-normal);
   font-style: italic;
   background: rgba(255, 255, 255, 0.01);
   border-left: 2px solid var(--accent-primary);
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 0 8px 8px 0;
 }
 
@@ -611,7 +631,7 @@ body {
 }
 
 .card-origin {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
   font-weight: 500;
   text-transform: uppercase;
@@ -624,9 +644,9 @@ body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.8);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
-  padding: 16px 28px;
+  padding: 12px 24px;
   border-radius: 40px;
   z-index: 100;
   pointer-events: none;
@@ -648,7 +668,7 @@ body {
 
 /* Dynamic Controls Footer */
 .app-controls {
-  padding: 16px 16px 24px;
+  padding: 8px 16px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -658,7 +678,7 @@ body {
 .controls-group {
   display: flex;
   width: 100%;
-  gap: 10px;
+  gap: 8px;
   justify-content: center;
   animation: zoomIn 0.3s var(--ease-out-expo);
 }
@@ -671,11 +691,11 @@ body {
 .btn-reveal {
   width: 100%;
   max-width: 320px;
-  height: 52px;
-  border-radius: 16px;
+  height: 48px;
+  border-radius: 14px;
   border: 1px solid var(--glass-border);
   color: var(--text-bright);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
@@ -697,14 +717,14 @@ body {
 /* Back - Spaced Repetition Buttons */
 .srs-btn {
   flex: 1;
-  height: 54px;
-  border-radius: 14px;
+  height: 50px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
   transition: var(--transition-fast);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -715,12 +735,12 @@ body {
 }
 
 .srs-pill {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .srs-btn label {
-  font-size: 8px;
+  font-size: 7.5px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   opacity: 0.65;
@@ -1123,4 +1143,80 @@ body {
 
 .fade-in-anim {
   animation: zoomIn 0.35s var(--ease-out-expo);
+}
+
+/* Compact adjustments for heights under 780px (e.g. standard phone viewport bounds) */
+@media (max-height: 780px) {
+  .app-container {
+    grid-template-rows: auto auto auto 1fr auto;
+  }
+  .app-header {
+    padding: 8px 16px;
+    margin: 6px 12px 2px;
+  }
+  .logo h1 {
+    font-size: 17px;
+  }
+  .header-btn {
+    width: 34px;
+    height: 34px;
+  }
+  .stats-dashboard {
+    margin: 0 12px 2px;
+    padding: 8px 12px;
+  }
+  .radial-progress-container {
+    width: 60px;
+    height: 60px;
+  }
+  .text-stats {
+    gap: 4px;
+  }
+  .stat-card {
+    padding: 6px 2px;
+  }
+  .stat-num {
+    font-size: 14px;
+  }
+  .category-nav {
+    padding: 2px 12px 6px;
+  }
+  .cat-pill {
+    padding: 4px 12px;
+    font-size: 11px;
+  }
+  .card-arena {
+    padding: 4px 12px;
+  }
+  .flashcard-container {
+    max-height: 330px;
+    aspect-ratio: 1.1 / 1.35;
+  }
+  .card-face {
+    padding: 16px 18px;
+  }
+  .card-title {
+    font-size: 26px;
+  }
+  .card-title-back {
+    font-size: 18px;
+  }
+  .meaning-box p, .example-box blockquote {
+    font-size: 12px;
+  }
+  .app-controls {
+    padding: 4px 12px 12px;
+  }
+  .btn-reveal {
+    height: 44px;
+    border-radius: 12px;
+    font-size: 13px;
+  }
+  .srs-btn {
+    height: 44px;
+    border-radius: 10px;
+  }
+  .srs-pill {
+    font-size: 11px;
+  }
 }
