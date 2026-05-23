@@ -1,0 +1,122 @@
+[
+  {
+    "id": "1",
+    "word": "Petrichor",
+    "type": "Noun",
+    "meaning": "The pleasant, earthy smell that accompanies the first rain after a long period of warm, dry weather.",
+    "pronunciation": "/ˈpɛtrɪkɔːr/",
+    "example": "Other than the gentle sound of droplets on the roof, the best part of the summer storm was the petrichor.",
+    "origin": "Greek ('petra' - stone + 'ichor' - the fluid that flows in the veins of the gods)",
+    "category": "Vocabulary"
+  },
+  {
+    "id": "2",
+    "word": "Sonder",
+    "type": "Noun / Concept",
+    "meaning": "The profound, sudden realization that everyone around you has a life as vivid, complex, and filled with detail as your own.",
+    "pronunciation": "/ˈsɒndər/",
+    "example": "Staring out at the crowded transit station, she was overcome by a wave of sonder, imagining the thousands of individual stories unfolding before her.",
+    "origin": "Coined by John Koenig in 'The Dictionary of Obscure Sorrows'",
+    "category": "Philosophy"
+  },
+  {
+    "id": "3",
+    "word": "Komorebi",
+    "type": "Noun",
+    "meaning": "The beautiful interplay of light and shadow when sunlight filters through the leaves of trees.",
+    "pronunciation": "/ko-mo-reh-bee/",
+    "example": "We sat on the forest floor, watching the komorebi dance across the emerald moss.",
+    "origin": "Japanese (木漏れ日)",
+    "category": "Language"
+  },
+  {
+    "id": "4",
+    "word": "Ataraxia",
+    "type": "Noun",
+    "meaning": "A state of serene calmness, untroubled mind, and absolute peace, prized by ancient Greek philosophers.",
+    "pronunciation": "/ˌætəˈræksiə/",
+    "example": "Through regular meditation and Stoic practice, he finally attained a state of ataraxia amidst the chaos.",
+    "origin": "Greek ('a-' - without + 'tarassein' - to disturb/trouble)",
+    "category": "Philosophy"
+  },
+  {
+    "id": "5",
+    "word": "Mellifluous",
+    "type": "Adjective",
+    "meaning": "A voice or sound that is sweet, smooth, and musical; pleasant to hear.",
+    "pronunciation": "/məˈlɪfluəs/",
+    "example": "The cellist's performance filled the warm theater with a rich, mellifluous tone.",
+    "origin": "Latin ('mel' - honey + 'fluere' - to flow)",
+    "category": "Vocabulary"
+  },
+  {
+    "id": "6",
+    "word": "Wabi-Sabi",
+    "type": "Noun / Aesthetic",
+    "meaning": "A world-view or aesthetic centered on finding beauty in imperfection, transience, and simplicity.",
+    "pronunciation": "/wah-bee sah-bee/",
+    "example": "Rather than throwing away the cracked tea bowl, they repaired it with gold, appreciating its wabi-sabi character.",
+    "origin": "Japanese (侘寂)",
+    "category": "Philosophy"
+  },
+  {
+    "id": "7",
+    "word": "Ephemeral",
+    "type": "Adjective",
+    "meaning": "Lasting for a very short time; transient, fleeting.",
+    "pronunciation": "/ɪˈfɛmərəl/",
+    "example": "Cherry blossoms are beloved precisely for their ephemeral beauty, lasting only a few short days each spring.",
+    "origin": "Greek ('ephēmeros' - lasting only a day)",
+    "category": "Vocabulary"
+  },
+  {
+    "id": "8",
+    "word": "L'appel du vide",
+    "type": "Noun phrase",
+    "meaning": "Literally 'the call of the void'. The sudden, intrusive urge or thought to do something dangerous or self-destructive, like jumping from a height.",
+    "pronunciation": "/la-pel doo veed/",
+    "example": "Standing on the cliff's edge, he felt the chilling sensation of l'appel du vide and stepped back.",
+    "origin": "French",
+    "category": "Language"
+  },
+  {
+    "id": "9",
+    "word": "Hiraeth",
+    "type": "Noun",
+    "meaning": "A homesickness mixed with grief or regret, for a home to which you cannot return, a home which maybe never was.",
+    "pronunciation": "/hɪər-aɪθ/",
+    "example": "Listening to the ancient folk melodies, she felt a sudden, deep sense of hiraeth.",
+    "origin": "Welsh",
+    "category": "Emotions"
+  },
+  {
+    "id": "10",
+    "word": "Elysian",
+    "type": "Adjective",
+    "meaning": "Beautiful, creative, or divinely inspired; peaceful, perfect, and blissful.",
+    "pronunciation": "/ɪˈlɪziən/",
+    "example": "The valley, with its golden fields and sparkling streams, felt like an Elysian paradise.",
+    "origin": "Greek (from Elysium, the mythological resting place of heroes)",
+    "category": "Vocabulary"
+  },
+  {
+    "id": "11",
+    "word": "Ikigai",
+    "type": "Noun",
+    "meaning": "A reason for being; the thing that gives you a sense of purpose and a reason to wake up in the morning.",
+    "pronunciation": "/ee-key-guy/",
+    "example": "For him, mentoring young artists was his true ikigai, bringing balance and joy to his daily schedule.",
+    "origin": "Japanese (生き甲斐)",
+    "category": "Philosophy"
+  },
+  {
+    "id": "12",
+    "word": "Serendipity",
+    "type": "Noun",
+    "meaning": "The occurrence of valuable or pleasant discoveries by chance, luck, or unexpected fortune.",
+    "pronunciation": "/ˌsɛrənˈdɪpɪti/",
+    "example": "Finding his childhood journal in a dusty antique shop was a moment of pure serendipity.",
+    "origin": "Coined by Horace Walpole from the Persian fairy tale 'The Three Princes of Serendip'",
+    "category": "Vocabulary"
+  }
+]

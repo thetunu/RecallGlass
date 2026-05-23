@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>RecallGlass — Premium Recall & Flashcards</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="./styles.css">
+  
+  <!-- PWA Theme Color -->
+  <meta name="theme-color" content="#0d111d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+
+  <!-- Ambient Glow Background Blobs -->
+  <div class="glow-blob blob-1"></div>
+  <div class="glow-blob blob-2"></div>
+  <div class="glow-blob blob-3"></div>
+
+  <!-- App Shell -->
+  <div class="app-container">
+    
+    <!-- Header -->
+    <header class="app-header glass-element">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <h1>Recall<span>Glass</span></h1>
+      </div>
+      <div class="header-actions">
+        <button id="btn-toggle-stats" class="header-btn" title="View Progress">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        </button>
+        <button id="btn-open-manager" class="header-btn" title="Manage Decks">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Drawer (Slide Down) -->
+    <section id="stats-drawer" class="stats-drawer glass-element hidden">
+      <div class="stats-grid">
+        <div class="radial-progress-container">
+          <svg class="radial-ring" viewBox="0 0 100 100">
+            <circle class="ring-bg" cx="50" cy="50" r="40"></circle>
+            <circle id="mastery-progress-ring" class="ring-fg" cx="50" cy="50" r="40"></circle>
+          </svg>
+          <div class="radial-text">
+            <span id="txt-mastery-percentage">0%</span>
+            <label>Mastered</label>
+          </div>
+        </div>
+        <div class="text-stats">
+          <div class="stat-card">
+            <span class="stat-num" id="stat-total">0</span>
+            <span class="stat-label">Total Cards</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num color-learned" id="stat-learned">0</span>
+            <span class="stat-label">Mastered</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-num color-review" id="stat-review">0</span>
+            <span class="stat-label">Due Today</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Category Pills Navigation -->
+    <nav class="category-nav scroll-hide">
+      <button class="cat-pill active" data-category="all">All Cards</button>
+      <button class="cat-pill" data-category="Vocabulary">Vocabulary</button>
+      <button class="cat-pill" data-category="Philosophy">Philosophy</button>
+      <button class="cat-pill" data-category="Language">Language</button>
+      <button class="cat-pill" data-category="Emotions">Emotions</button>
+    </nav>
+
+    <!-- Main Flashcard Board -->
+    <main class="card-arena">
+      <div id="deck-completion-view" class="completion-card glass-element hidden">
+        <div class="completion-icon">🎉</div>
+        <h2>All Caught Up!</h2>
+        <p>No cards are due for review right now. Add new cards or reset your session progress to keep practicing your recall!</p>
+        <button id="btn-reset-session" class="btn btn-secondary">Reset Mastery & Replay</button>
+      </div>
+
+      <!-- Flashcard Wrapper for Swiping and 3D Rotation -->
+      <div id="flashcard-container" class="flashcard-container">
+        
+        <!-- The Card Element -->
+        <div id="flashcard" class="flashcard">
+          
+          <!-- Front Face -->
+          <div class="card-face card-front glass-element">
+            <div class="card-header">
+              <span id="card-tag-front" class="card-tag">Concept</span>
+              <span id="card-status-front" class="card-status status-new">NEW</span>
+            </div>
+            
+            <div class="card-content-wrapper">
+              <h2 id="card-word-front" class="card-title">Sonder</h2>
+              <p id="card-pronunciation-front" class="card-pronunciation">/ˈsɒndər/</p>
+              <div class="tap-indicator">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18h1a4 4 0 1 0 0-8h-1a5 5 0 1 0-10 0H6a4 4 0 1 0 0 8h1"></path><path d="M12 12v6"></path><path d="m9 15 3 3 3-3"></path></svg>
+                <span>Tap card to reveal answer</span>
+              </div>
+            </div>
+            
+            <div class="card-footer">
+              <span id="card-origin-front" class="card-origin">Obscure Sorrows</span>
+            </div>
+          </div>
+          
+          <!-- Back Face -->
+          <div class="card-face card-back glass-element">
+            <div class="card-header">
+              <span id="card-tag-back" class="card-tag">Concept</span>
+              <div class="card-back-header-actions">
+                <button id="btn-edit-current-card" class="card-action-icon-btn" title="Edit This Card">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </button>
+                <span id="card-status-back" class="card-status status-new">NEW</span>
+              </div>
+            </div>
+            
+            <div class="card-content-wrapper scrollable-content">
+              <h3 id="card-word-back" class="card-title-back">Sonder</h3>
+              
+              <div class="meaning-box">
+                <label>Meaning</label>
+                <p id="card-meaning-back">The profound realization that everyone around you has a life as vivid and complex as your own.</p>
+              </div>
+              
+              <div class="example-box">
+                <label>Example Context</label>
+                <blockquote id="card-example-back">"Standing on the station platform, he felt a wave of sonder looking at the passing train."</blockquote>
+              </div>
+            </div>
+            
+            <div class="card-footer">
+              <span id="card-origin-back" class="card-origin">Obscure Sorrows</span>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+      
+      <!-- HUD glows during pointer swipes -->
+      <div id="swipe-indicator-master" class="swipe-glow mastered-glow">Mastered (7d)</div>
+      <div id="swipe-indicator-again" class="swipe-glow again-glow">Again (Now)</div>
+    </main>
+
+    <!-- Bottom Controls Area -->
+    <footer class="app-controls">
+      <!-- Front View Controls -->
+      <div id="controls-front" class="controls-group">
+        <button id="btn-reveal-answer" class="btn-reveal glass-element" title="Reveal Answer (Tap Card)">
+          Reveal Answer
+        </button>
+      </div>
+
+      <!-- Back View (Answer Revealed) Controls: Spaced Repetition -->
+      <div id="controls-back" class="controls-group hidden">
+        <button id="btn-srs-again" class="srs-btn srs-again" title="Recall Failed (Show Again Soon)">
+          <span class="srs-pill">Again</span>
+          <label>Immediate</label>
+        </button>
+        <button id="btn-srs-1day" class="srs-btn srs-1day" title="Review in 1 Day">
+          <span class="srs-pill">1 Day</span>
+          <label>Hard</label>
+        </button>
+        <button id="btn-srs-3days" class="srs-btn srs-3days" title="Review in 3 Days">
+          <span class="srs-pill">3 Days</span>
+          <label>Good</label>
+        </button>
+        <button id="btn-srs-7days" class="srs-btn srs-7days" title="Recall is Perfect (Mastered for 7 Days)">
+          <span class="srs-pill">7 Days</span>
+          <label>Easy</label>
+        </button>
+      </div>
+    </footer>
+
+    <!-- Deck Manager Drawer (Slide Up Modal) -->
+    <section id="manager-drawer" class="manager-drawer glass-element scroll-hide hidden">
+      <div class="drawer-header">
+        <h2 id="manager-title">Deck Manager</h2>
+        <button id="btn-close-manager" class="header-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <!-- Import/Export & Actions -->
+      <div class="manager-actions">
+        <button id="btn-export" class="btn btn-secondary btn-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Export Deck
+        </button>
+        <button id="btn-import-trigger" class="btn btn-secondary btn-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Import Deck
+        </button>
+        <input type="file" id="import-file" accept=".json" style="display: none;">
+      </div>
+
+      <!-- Add/Edit Card Form -->
+      <form id="add-card-form" class="add-card-form">
+        <h3 id="form-action-title">Create New Flashcard</h3>
+        <input type="hidden" id="input-edit-id">
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="input-word">Word / Idea *</label>
+            <input type="text" id="input-word" placeholder="e.g. Sonder" required autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="input-type">Word Type / Part</label>
+            <input type="text" id="input-type" placeholder="e.g. Noun, Phrase" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="input-category">Category *</label>
+            <select id="input-category" required>
+              <option value="Vocabulary">Vocabulary</option>
+              <option value="Philosophy">Philosophy</option>
+              <option value="Language">Language</option>
+              <option value="Emotions">Emotions</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="input-pronunciation">Pronunciation Key</label>
+            <input type="text" id="input-pronunciation" placeholder="e.g. /ˈsɒndər/" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-meaning">Definition / Explanation *</label>
+          <textarea id="input-meaning" placeholder="Write a clear and simple meaning..." required rows="3"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="input-example">Example Sentence / Context</label>
+          <textarea id="input-example" placeholder="Use this word in a vivid sentence for better recall..." rows="2"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="input-origin">Origin / Etymology / Notes</label>
+          <input type="text" id="input-origin" placeholder="e.g. French, Greek roots..." autocomplete="off">
+        </div>
+
+        <div class="form-buttons-row">
+          <button type="submit" id="btn-submit-form" class="btn btn-primary">Save to Flashcards</button>
+          <button type="button" id="btn-cancel-edit" class="btn btn-secondary hidden">Cancel Edit</button>
+        </div>
+      </form>
+
+      <!-- Manage List -->
+      <div class="card-list-section">
+        <div class="section-title-row">
+          <h3>Your Library</h3>
+          <span id="txt-library-count">0 cards</span>
+        </div>
+        <div class="search-bar">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="search-library" placeholder="Search cards..." autocomplete="off">
+        </div>
+        
+        <div id="library-list" class="library-list">
+          <!-- Dynamic cards list -->
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Service Worker Registration for 100% Offline PWA Capability -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((registration) => {
+            console.log('RecallGlass SW registered successfully with scope:', registration.scope);
+          })
+          .catch((error) => {
+            console.log('RecallGlass SW registration failed:', error);
+          });
+      });
+    }
+  </script>
+  
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
