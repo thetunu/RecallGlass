@@ -119,32 +119,34 @@ let authStateListener = null;
 
 const isFirebaseConfigured = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
 
-if (isFirebaseConfigured) {
-  try {
-    // Dynamic import to allow fully seamless offline operation if needed
-    const firebaseAppModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
-    const firebaseAuthModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
-    const firebaseFirestoreModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
+async function initFirebase() {
+  if (isFirebaseConfigured) {
+    try {
+      // Dynamic import to allow fully seamless offline operation if needed
+      const firebaseAppModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js');
+      const firebaseAuthModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js');
+      const firebaseFirestoreModule = await import('https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js');
 
-    firebaseApp = firebaseAppModule.initializeApp(firebaseConfig);
-    auth = firebaseAuthModule.getAuth(firebaseApp);
-    db = firebaseFirestoreModule.getFirestore(firebaseApp);
-    
-    // Bind functions for clean usage
-    docRef = firebaseFirestoreModule.doc;
-    setDocFn = firebaseFirestoreModule.setDoc;
-    getDocFn = firebaseFirestoreModule.getDoc;
-    signInFn = firebaseAuthModule.signInWithEmailAndPassword;
-    signUpFn = firebaseAuthModule.createUserWithEmailAndPassword;
-    signOutFn = firebaseAuthModule.signOut;
-    authStateListener = firebaseAuthModule.onAuthStateChanged;
-    
-    console.log('[Firebase] Cloud Database initialized successfully.');
-  } catch (error) {
-    console.error('[Firebase] Failed to load ESM CDN scripts:', error);
+      firebaseApp = firebaseAppModule.initializeApp(firebaseConfig);
+      auth = firebaseAuthModule.getAuth(firebaseApp);
+      db = firebaseFirestoreModule.getFirestore(firebaseApp);
+      
+      // Bind functions for clean usage
+      docRef = firebaseFirestoreModule.doc;
+      setDocFn = firebaseFirestoreModule.setDoc;
+      getDocFn = firebaseFirestoreModule.getDoc;
+      signInFn = firebaseAuthModule.signInWithEmailAndPassword;
+      signUpFn = firebaseAuthModule.createUserWithEmailAndPassword;
+      signOutFn = firebaseAuthModule.signOut;
+      authStateListener = firebaseAuthModule.onAuthStateChanged;
+      
+      console.log('[Firebase] Cloud Database initialized successfully.');
+    } catch (error) {
+      console.error('[Firebase] Failed to load ESM CDN scripts:', error);
+    }
+  } else {
+    console.warn('[Firebase] Credentials missing. Running in Offline Guest Mode. Add keys to firebase-config.js.');
   }
-} else {
-  console.warn('[Firebase] Credentials missing. Running in Offline Guest Mode. Add keys to firebase-config.js.');
 }
 
 // --- DOM Elements ---
@@ -238,6 +240,7 @@ const elStatReview = document.getElementById('stat-review');
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+  await initFirebase();
   setupFirebaseLifecycle();
   await loadCards();
   renderApp();
