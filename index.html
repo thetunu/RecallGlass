@@ -35,11 +35,16 @@
         <h1>Recall<span>Glass</span></h1>
       </div>
       <div class="header-actions">
+        <!-- User Profile Button (Quick Login/Cloud Sync Status) -->
+        <button id="btn-header-profile" class="header-btn profile-btn" title="Cloud Profile">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          <span id="header-user-status-dot" class="status-dot-offline"></span>
+        </button>
         <button id="btn-header-add" class="header-btn add-card-btn" title="Add Flashcard">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         </button>
         <button id="btn-open-manager" class="header-btn" title="Manage Decks">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
         </button>
       </div>
     </header>
@@ -106,7 +111,13 @@
             </div>
             
             <div class="card-content-wrapper">
-              <h2 id="card-word-front" class="card-title">Sonder</h2>
+              <!-- Pronunciation Speak Row -->
+              <div class="card-title-row">
+                <h2 id="card-word-front" class="card-title">Sonder</h2>
+                <button id="btn-speak-word-front" class="speak-icon-btn" title="Pronounce Word">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </button>
+              </div>
               <p id="card-pronunciation-front" class="card-pronunciation">/ˈsɒndər/</p>
               <div class="tap-indicator">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18h1a4 4 0 1 0 0-8h-1a5 5 0 1 0-10 0H6a4 4 0 1 0 0 8h1"></path><path d="M12 12v6"></path><path d="m9 15 3 3 3-3"></path></svg>
@@ -132,7 +143,13 @@
             </div>
             
             <div class="card-content-wrapper scrollable-content">
-              <h3 id="card-word-back" class="card-title-back">Sonder</h3>
+              <!-- Pronunciation Speak Row Back -->
+              <div class="card-title-row" style="justify-content: flex-start;">
+                <h3 id="card-word-back" class="card-title-back" style="border: none; padding: 0; margin: 0;">Sonder</h3>
+                <button id="btn-speak-word-back" class="speak-icon-btn speak-back" title="Pronounce Word">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </button>
+              </div>
               
               <div class="meaning-box">
                 <label>Meaning</label>
@@ -153,9 +170,11 @@
         </div>
       </div>
       
-      <!-- HUD glows during pointer swipes -->
-      <div id="swipe-indicator-master" class="swipe-glow mastered-glow">Mastered (7d)</div>
-      <div id="swipe-indicator-again" class="swipe-glow again-glow">Again (Now)</div>
+      <!-- 4-Directional Swipe HUD glows -->
+      <div id="swipe-indicator-master" class="swipe-glow mastered-glow">Mastered (7d) ➡️</div>
+      <div id="swipe-indicator-again" class="swipe-glow again-glow">⬅️ Again (Now)</div>
+      <div id="swipe-indicator-hard" class="swipe-glow hard-glow">Hard (1d) ⬆️</div>
+      <div id="swipe-indicator-good" class="swipe-glow good-glow">Good (3d) ⬇️</div>
     </main>
 
     <!-- Bottom Controls Area -->
@@ -197,98 +216,175 @@
         </button>
       </div>
 
-      <!-- Import/Export & Actions -->
-      <div class="manager-actions">
-        <button id="btn-export" class="btn btn-secondary btn-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          Export Deck
-        </button>
-        <button id="btn-import-trigger" class="btn btn-secondary btn-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          Import Deck
-        </button>
-        <input type="file" id="import-file" accept=".json" style="display: none;">
+      <!-- Tab Bar Navigation Menu (Screenshot 1 Reorg) -->
+      <div class="drawer-tabs">
+        <button type="button" class="drawer-tab active" data-tab="create">➕ Add Card</button>
+        <button type="button" class="drawer-tab" data-tab="library">📚 My Library</button>
       </div>
 
-      <!-- Add/Edit Card Form -->
-      <form id="add-card-form" class="add-card-form">
-        <h3 id="form-action-title">Create New Flashcard</h3>
-        <input type="hidden" id="input-edit-id">
+      <!-- Tab Content 1: Create/Edit Card Form -->
+      <div id="drawer-tab-content-create" class="drawer-tab-content">
+        <!-- Import/Export Actions -->
+        <div class="manager-actions">
+          <button id="btn-export" class="btn btn-secondary btn-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Export Deck
+          </button>
+          <button id="btn-import-trigger" class="btn btn-secondary btn-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Import Deck
+          </button>
+          <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+
+        <form id="add-card-form" class="add-card-form">
+          <h3 id="form-action-title">Create New Flashcard</h3>
+          <input type="hidden" id="input-edit-id">
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label for="input-word">Word / Idea *</label>
+              <input type="text" id="input-word" placeholder="e.g. Sonder" required autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="input-type">Word Type / Part</label>
+              <input type="text" id="input-type" placeholder="e.g. Noun, Phrase" autocomplete="off">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="input-category">Category *</label>
+              <select id="input-category" required>
+                <option value="Vocabulary">Vocabulary</option>
+                <option value="Philosophy">Philosophy</option>
+                <option value="Language">Language</option>
+                <option value="Emotions">Emotions</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="input-pronunciation">Pronunciation Key</label>
+              <input type="text" id="input-pronunciation" placeholder="e.g. /ˈsɒndər/" autocomplete="off">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="input-language">Pronounce Voice Language *</label>
+              <select id="input-language" required>
+                <option value="en-US">English</option>
+                <option value="es-ES">Spanish</option>
+                <option value="ar-SA">Arabic</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="input-origin">Origin / Etymology / Notes</label>
+              <input type="text" id="input-origin" placeholder="e.g. French, Greek roots..." autocomplete="off">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="input-meaning">Definition / Explanation *</label>
+            <textarea id="input-meaning" placeholder="Write a clear and simple meaning..." required rows="3"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="input-example">Example Sentence / Context</label>
+            <textarea id="input-example" placeholder="Use this word in a vivid sentence for better recall..." rows="2"></textarea>
+          </div>
+
+          <div class="form-buttons-row">
+            <button type="submit" id="btn-submit-form" class="btn btn-primary">Save to Flashcards</button>
+            <button type="button" id="btn-cancel-edit" class="btn btn-secondary hidden">Cancel Edit</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tab Content 2: Scrollable Card Library -->
+      <div id="drawer-tab-content-library" class="drawer-tab-content hidden">
+        <div class="card-list-section">
+          <div class="section-title-row">
+            <h3>Your Library</h3>
+            <span id="txt-library-count">0 cards</span>
+          </div>
+          <div class="search-bar">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="search-library" placeholder="Search cards..." autocomplete="off">
+          </div>
+          
+          <div id="library-list" class="library-list">
+            <!-- Dynamic cards list -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cloud Authentication Drawer (Slide Up Modal) -->
+    <section id="auth-drawer" class="manager-drawer glass-element scroll-hide hidden" style="height: 70%; max-height: 520px;">
+      <div class="drawer-header">
+        <h2 id="auth-title">Cloud Account</h2>
+        <button id="btn-close-auth" class="header-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <!-- Guest / Logged Out Interface -->
+      <div id="auth-logged-out" class="auth-box">
+        <p class="auth-intro-msg">Create a cloud profile to automatically back up your cards and sync them across all your mobile phones and computers!</p>
         
-        <div class="form-row">
-          <div class="form-group">
-            <label for="input-word">Word / Idea *</label>
-            <input type="text" id="input-word" placeholder="e.g. Sonder" required autocomplete="off">
+        <div class="auth-toggle-headers">
+          <button id="tab-auth-login" class="auth-toggle-tab active">Sign In</button>
+          <button id="tab-auth-register" class="auth-toggle-tab">Register</button>
+        </div>
+
+        <form id="auth-form" class="add-card-form" style="margin-top: 10px;">
+          <h3 id="auth-form-title">Log In to Your Profile</h3>
+          
+          <div class="form-group" id="group-auth-name" class="hidden" style="display: none;">
+            <label for="input-auth-name">Your Full Name</label>
+            <input type="text" id="input-auth-name" placeholder="e.g. Mony Sardar" autocomplete="off">
           </div>
+
           <div class="form-group">
-            <label for="input-type">Word Type / Part</label>
-            <input type="text" id="input-type" placeholder="e.g. Noun, Phrase" autocomplete="off">
+            <label for="input-auth-email">Email Address *</label>
+            <input type="email" id="input-auth-email" placeholder="e.g. mony@sardar.com" required autocomplete="off">
           </div>
-        </div>
 
-        <div class="form-row">
           <div class="form-group">
-            <label for="input-category">Category *</label>
-            <select id="input-category" required>
-              <option value="Vocabulary">Vocabulary</option>
-              <option value="Philosophy">Philosophy</option>
-              <option value="Language">Language</option>
-              <option value="Emotions">Emotions</option>
-            </select>
+            <label for="input-auth-password">Password *</label>
+            <input type="password" id="input-auth-password" placeholder="Min. 6 characters" required autocomplete="off">
           </div>
-          <div class="form-group">
-            <label for="input-pronunciation">Pronunciation Key</label>
-            <input type="text" id="input-pronunciation" placeholder="e.g. /ˈsɒndər/" autocomplete="off">
-          </div>
-        </div>
 
-        <div class="form-group">
-          <label for="input-meaning">Definition / Explanation *</label>
-          <textarea id="input-meaning" placeholder="Write a clear and simple meaning..." required rows="3"></textarea>
-        </div>
+          <button type="submit" id="btn-auth-submit" class="btn btn-primary" style="margin-top: 6px;">Sign In</button>
+        </form>
+      </div>
 
-        <div class="form-group">
-          <label for="input-example">Example Sentence / Context</label>
-          <textarea id="input-example" placeholder="Use this word in a vivid sentence for better recall..." rows="2"></textarea>
+      <!-- Logged In User Interface -->
+      <div id="auth-logged-in" class="auth-box hidden" style="display: none; text-align: center; padding: 20px 0;">
+        <div class="auth-avatar-circle">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
         </div>
-
-        <div class="form-group">
-          <label for="input-origin">Origin / Etymology / Notes</label>
-          <input type="text" id="input-origin" placeholder="e.g. French, Greek roots..." autocomplete="off">
-        </div>
-
-        <div class="form-buttons-row">
-          <button type="submit" id="btn-submit-form" class="btn btn-primary">Save to Flashcards</button>
-          <button type="button" id="btn-cancel-edit" class="btn btn-secondary hidden">Cancel Edit</button>
-        </div>
-      </form>
-
-      <!-- Manage List -->
-      <div class="card-list-section">
-        <div class="section-title-row">
-          <h3>Your Library</h3>
-          <span id="txt-library-count">0 cards</span>
-        </div>
-        <div class="search-bar">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="search-library" placeholder="Search cards..." autocomplete="off">
-        </div>
+        <h2 id="txt-user-display-name" style="color: var(--text-bright); margin-top: 12px; font-size: 18px;">Welcome!</h2>
+        <p id="txt-user-email" style="color: var(--text-muted); font-size: 13px; margin: 4px 0 20px;">mony@sardar.com</p>
         
-        <div id="library-list" class="library-list">
-          <!-- Dynamic cards list -->
+        <div class="sync-status-indicator glass-element" style="padding: 12px; margin: 20px 0; border-radius: 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 8px; border-color: rgba(39, 174, 96, 0.2);">
+          <span style="width: 8px; height: 8px; background-color: var(--color-success); border-radius: 50%; display:inline-block; box-shadow: 0 0 8px var(--color-success);"></span>
+          <span style="color: var(--text-normal);">Decks are secure & synced in Real-Time</span>
         </div>
+
+        <button id="btn-auth-logout" class="btn btn-secondary" style="width: 100%; max-width: 200px; display: block; margin: 10px auto 0;">Sign Out</button>
       </div>
     </section>
 
   </div>
 
-  <!-- Service Worker Registration for 100% Offline PWA Capability -->
+  <!-- Service Worker Registration for Offline Cache -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
           .then((registration) => {
-            console.log('RecallGlass SW registered successfully with scope:', registration.scope);
+            console.log('RecallGlass SW registered successfully:', registration.scope);
           })
           .catch((error) => {
             console.log('RecallGlass SW registration failed:', error);
