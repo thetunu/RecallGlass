@@ -149,11 +149,24 @@ async function initFirebase() {
   }
 }
 
+// --- Global Upload Cache ---
+let currentUploadedPhotoBase64 = null;
+
 // --- DOM Elements ---
-const elHeaderAddBtn = document.getElementById('btn-header-add');
 const elHeaderManagerBtn = document.getElementById('btn-open-manager');
 const elHeaderProfileBtn = document.getElementById('btn-header-profile');
 const elUserStatusDot = document.getElementById('header-user-status-dot');
+const elHeaderUserName = document.getElementById('header-user-name');
+
+const elCardPhotoContainer = document.getElementById('card-photo-container');
+const elCardPhotoBack = document.getElementById('card-photo-back');
+
+// Form Photo Elements
+const elPhotoInput = document.getElementById('input-photo');
+const elPhotoTrigger = document.getElementById('btn-photo-upload-trigger');
+const elPhotoPreviewWrapper = document.getElementById('photo-preview-wrapper');
+const elPhotoPreview = document.getElementById('photo-preview');
+const elPhotoRemoveBtn = document.getElementById('btn-photo-remove');
 
 const elManagerDrawer = document.getElementById('manager-drawer');
 const elCloseManagerBtn = document.getElementById('btn-close-manager');
@@ -396,6 +409,15 @@ function renderCurrentCard() {
   elCardExampleBack.innerHTML = card.example ? `"${card.example}"` : 'No custom example sentence provided.';
   elCardOriginBack.innerText = card.origin || 'Recall';
   updateStatusLabel(elCardStatusBack, card.status);
+  
+  // Render Photo if exists
+  if (card.photo) {
+    elCardPhotoContainer.classList.remove('hidden');
+    elCardPhotoBack.src = card.photo;
+  } else {
+    elCardPhotoContainer.classList.add('hidden');
+    elCardPhotoBack.src = '';
+  }
   
   elCard.classList.remove('fade-in-anim');
   void elCard.offsetWidth; 
@@ -689,6 +711,19 @@ function startEditCard(id) {
   document.getElementById('input-example').value = card.example || '';
   document.getElementById('input-origin').value = card.origin || '';
 
+  // Prefill Photo if exists
+  if (card.photo) {
+    currentUploadedPhotoBase64 = card.photo;
+    elPhotoPreview.src = card.photo;
+    elPhotoPreviewWrapper.classList.remove('hidden');
+    elPhotoTrigger.querySelector('span').innerText = 'Change Photo';
+  } else {
+    currentUploadedPhotoBase64 = null;
+    elPhotoPreview.src = '';
+    elPhotoPreviewWrapper.classList.add('hidden');
+    elPhotoTrigger.querySelector('span').innerText = 'Select Photo';
+  }
+
   openManagerDrawer();
   elManagerDrawer.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -701,6 +736,13 @@ function cancelCardEdit() {
   elFormActionTitle.innerText = "Create New Flashcard";
   elSubmitFormBtn.innerText = "Save to Flashcards";
   elCancelEditBtn.classList.add('hidden');
+  
+  // Clear Photo preview
+  currentUploadedPhotoBase64 = null;
+  elPhotoInput.value = '';
+  elPhotoPreview.src = '';
+  elPhotoPreviewWrapper.classList.add('hidden');
+  elPhotoTrigger.querySelector('span').innerText = 'Select Photo';
 }
 
 async function handleAddCardFormSubmit(e) {
@@ -726,6 +768,7 @@ async function handleAddCardFormSubmit(e) {
       card.meaning = meaning;
       card.example = example;
       card.origin = origin;
+      card.photo = currentUploadedPhotoBase64;
       
       state.currentIndex = 0;
       await syncLocalDeckToCloud();
@@ -743,6 +786,7 @@ async function handleAddCardFormSubmit(e) {
       meaning,
       example,
       origin,
+      photo: currentUploadedPhotoBase64,
       status: 'new',
       nextReview: 0
     };
@@ -853,6 +897,7 @@ function updateProfileUIStatus(user) {
   if (!isFirebaseConfigured) {
     elUserStatusDot.className = "status-dot-offline";
     elHeaderProfileBtn.title = "Firebase Offline (Keys Missing)";
+    if (elHeaderUserName) elHeaderUserName.innerText = 'Guest';
     return;
   }
 
@@ -862,6 +907,11 @@ function updateProfileUIStatus(user) {
     elUserDisplayNameText.innerText = `Welcome, ${user.displayName || 'Learner'}!`;
     elUserEmailText.innerText = user.email;
     
+    if (elHeaderUserName) {
+      const firstName = (user.displayName || 'Learner').split(' ')[0];
+      elHeaderUserName.innerText = firstName;
+    }
+    
     elAuthLoggedOutView.classList.add('hidden');
     elAuthLoggedOutView.style.display = 'none';
     elAuthLoggedInView.classList.remove('hidden');
@@ -869,6 +919,8 @@ function updateProfileUIStatus(user) {
   } else {
     elUserStatusDot.className = "status-dot-guest";
     elHeaderProfileBtn.title = "Offline Guest Profile";
+    
+    if (elHeaderUserName) elHeaderUserName.innerText = 'Guest';
     
     elAuthLoggedOutView.classList.remove('hidden');
     elAuthLoggedOutView.style.display = 'block';
@@ -1021,12 +1073,67 @@ function setupEventListeners() {
 
   elResetSessionBtn.addEventListener('click', resetActiveSession);
 
-  // Quick header Add button
-  elHeaderAddBtn.addEventListener('click', () => {
-    cancelCardEdit();
-    switchDrawerTab('create');
-    openManagerDrawer();
-  });
+  // Photo upload triggers
+  if (elPhotoTrigger) {
+    elPhotoTrigger.addEventListener('click', () => elPhotoInput.click());
+  }
+
+  if (elPhotoInput) {
+    elPhotoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          // Create canvas for downscaling
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with 0.7 quality (keeps it tiny: 10-20KB!)
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          currentUploadedPhotoBase64 = compressedBase64;
+
+          elPhotoPreview.src = compressedBase64;
+          elPhotoPreviewWrapper.classList.remove('hidden');
+          elPhotoTrigger.querySelector('span').innerText = 'Change Photo';
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (elPhotoRemoveBtn) {
+    elPhotoRemoveBtn.addEventListener('click', () => {
+      currentUploadedPhotoBase64 = null;
+      elPhotoInput.value = '';
+      elPhotoPreview.src = '';
+      elPhotoPreviewWrapper.classList.add('hidden');
+      elPhotoTrigger.querySelector('span').innerText = 'Select Photo';
+    });
+  }
 
   // Profile icon button in header
   elHeaderProfileBtn.addEventListener('click', openAuthDrawer);
@@ -1070,6 +1177,29 @@ function setupEventListeners() {
   elBtnExport.addEventListener('click', exportDeck);
   elBtnImportTrigger.addEventListener('click', () => elImportFileInput.click());
   elImportFileInput.addEventListener('change', importDeck);
+
+  // App Version Selector Listener
+  const elVersionSelect = document.getElementById('select-app-version');
+  if (elVersionSelect) {
+    // Prefill selection based on current URL path
+    const path = window.location.pathname;
+    if (path.includes('/v1.4')) {
+      elVersionSelect.value = 'v1.4';
+    } else if (path.includes('/v1.3')) {
+      elVersionSelect.value = 'v1.3';
+    } else {
+      elVersionSelect.value = 'latest';
+    }
+
+    elVersionSelect.addEventListener('change', (e) => {
+      const selected = e.target.value;
+      if (selected === 'latest') {
+        window.location.href = 'https://thetunu.github.io/RecallGlass/';
+      } else {
+        window.location.href = `https://thetunu.github.io/RecallGlass/${selected}/`;
+      }
+    });
+  }
 }
 
 // --- Utility Helpers ---

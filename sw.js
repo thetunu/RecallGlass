@@ -77,3 +77,11 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// 4. Message Event — Process skipWaiting updates from frontend
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
+});
+

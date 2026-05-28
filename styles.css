@@ -1436,3 +1436,193 @@ body {
     font-size: 11px;
   }
 }
+
+/* --- RecallGlass v5 Upgrades (Photos & Profile Display) --- */
+
+.header-user-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-normal);
+  max-width: 60px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 6px;
+  text-transform: capitalize;
+  transition: all var(--transition-fast);
+}
+
+.profile-btn {
+  width: auto !important; /* Allow variable width for name */
+  padding: 0 10px 0 8px !important;
+  border-radius: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+@media (max-width: 375px) {
+  .header-user-name {
+    display: none !important;
+  }
+  .profile-btn {
+    width: 38px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+  }
+}
+
+/* Card Back Face Photo display */
+.card-photo-container {
+  width: 100%;
+  margin: 6px 0 12px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 160px;
+  transition: transform var(--transition-smooth);
+}
+
+.card-photo-container:hover {
+  transform: scale(1.02);
+}
+
+.card-photo-container img {
+  width: 100%;
+  height: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Photo Upload Form Components */
+.photo-upload-container {
+  width: 100%;
+  position: relative;
+}
+
+.photo-preview-wrapper {
+  margin-top: 10px;
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.photo-preview-wrapper img {
+  width: 100%;
+  height: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  display: block;
+}
+
+.btn-photo-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: all var(--transition-fast);
+}
+
+.btn-photo-remove:hover {
+  background: var(--color-danger);
+  transform: scale(1.1);
+}
+
+/* --- RecallGlass v6 Upgrades (PWA Update Toast Notification) --- */
+.update-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: rgba(13, 17, 29, 0.75);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 9999;
+  width: calc(100% - 32px);
+  max-width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(265, 85, 68, 0.1);
+  transition: transform 0.4s var(--ease-out-expo), opacity 0.3s ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.update-toast.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  pointer-events: all;
+}
+
+.update-toast-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.update-toast-icon {
+  font-size: 20px;
+  animation: bounce 2s infinite ease-in-out;
+}
+
+.update-toast-text {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.update-toast-text h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-bright);
+}
+
+.update-toast-text p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.btn-primary.btn-sm {
+  padding: 6px 12px !important;
+  font-size: 11px !important;
+  height: auto !important;
+  border-radius: 10px !important;
+}
+
+.version-selector-container select:hover, .version-selector-container select:focus {
+  border-color: var(--accent-secondary) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+
