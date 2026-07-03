@@ -2,7 +2,7 @@
    RecallGlass — Service Worker for 100% Offline Mobile Operation
    ========================================================================== */
 
-const CACHE_NAME = 'recall-glass-cache-v3';
+const CACHE_NAME = 'recall-glass-cache-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

@@ -1,5 +1,6 @@
 /* ==========================================================================
-   RecallGlass — Core Application Logic v5 (SM-2 SRS, Custom Decks & Undo)
+   RecallGlass — Core Application Logic v6 (Streaks, Heatmap, Quick Add,
+   Share Target & Reverse Study)
    ========================================================================== */
 
 import { firebaseConfig } from './firebase-config.js';
@@ -160,6 +161,62 @@ let undoHideTimer = null;
 let pendingImportCards = null;
 
 /* ==========================================================================
+   Daily Habit Tracking — review log, streaks & goal
+   reviewLog maps local date "YYYY-MM-DD" -> number of reviews that day.
+   ========================================================================== */
+let reviewLog = {};
+try {
+  reviewLog = JSON.parse(localStorage.getItem('recall_glass_review_log')) || {};
+} catch (e) {
+  reviewLog = {};
+}
+
+function dateKey(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function saveReviewLog() {
+  try {
+    localStorage.setItem('recall_glass_review_log', JSON.stringify(reviewLog));
+  } catch (e) { /* non-critical */ }
+}
+
+function getDailyGoal() {
+  const stored = parseInt(localStorage.getItem('recall_glass_daily_goal'), 10);
+  return stored > 0 ? stored : 20;
+}
+
+function setDailyGoal(goal) {
+  localStorage.setItem('recall_glass_daily_goal', String(goal));
+}
+
+function getStreak() {
+  let streak = 0;
+  const d = new Date();
+  // Today keeps the streak alive once it has reviews; before that, count from yesterday
+  if (!(reviewLog[dateKey(d)] > 0)) d.setDate(d.getDate() - 1);
+  while (reviewLog[dateKey(d)] > 0) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+function logReview(delta) {
+  const key = dateKey();
+  const before = reviewLog[key] || 0;
+  reviewLog[key] = Math.max(0, before + delta);
+  const goal = getDailyGoal();
+  if (delta > 0 && before < goal && reviewLog[key] >= goal) {
+    showToast(`Daily goal of ${goal} reviews reached! 🔥 ${getStreak()}-day streak.`, 'success');
+  }
+  saveReviewLog();
+}
+
+// --- Study Direction (normal: word -> meaning, reverse: meaning -> word) ---
+let studyDirection = localStorage.getItem('recall_glass_direction') === 'reverse' ? 'reverse' : 'normal';
+
+/* ==========================================================================
    SM-2 Spaced Repetition Engine
    Cards carry: interval (days), ease (growth factor, starts 2.5), nextReview.
    Each success grows the interval (1d -> 3d -> ~7d -> ~18d -> ...), a lapse
@@ -318,6 +375,18 @@ const elCategorySelect = document.getElementById('input-category');
 const elNewCategoryInput = document.getElementById('input-new-category');
 const elForgotPasswordBtn = document.getElementById('btn-forgot-password');
 
+// Habit, Heatmap, Quick Add & Direction elements
+const elStreakText = document.getElementById('txt-streak');
+const elGoalText = document.getElementById('txt-goal');
+const elGoalBar = document.getElementById('goal-bar');
+const elHeatmapGrid = document.getElementById('heatmap-grid');
+const elHeatmapTotal = document.getElementById('txt-heatmap-total');
+const elDailyGoalSelect = document.getElementById('select-daily-goal');
+const elQuickWordInput = document.getElementById('input-quick-word');
+const elQuickAddBtn = document.getElementById('btn-quick-add');
+const elDirectionToggleBtn = document.getElementById('btn-direction-toggle');
+const elTabContentStats = document.getElementById('drawer-tab-content-stats');
+
 // Manager Form Elements
 const elAddCardForm = document.getElementById('add-card-form');
 const elSubmitFormBtn = document.getElementById('btn-submit-form');
@@ -344,6 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadCards();
   populateCategorySelect();
   renderApp();
+  handleSharedText();
 });
 
 // --- State and Storage Logic ---
@@ -391,6 +461,13 @@ async function fetchCloudDeck() {
     if (docSnap.exists()) {
       state.cards = docSnap.data().cards || [];
       state.cards.forEach(normalizeCard);
+
+      // Merge cloud review log (take the higher count per day — safe on multi-device)
+      const cloudLog = docSnap.data().reviewLog || {};
+      for (const day in cloudLog) {
+        reviewLog[day] = Math.max(reviewLog[day] || 0, cloudLog[day]);
+      }
+      saveReviewLog();
     } else {
       // Seed new Cloud profile with default seed cards
       console.log('[Firestore] Seeding new user profile with default cards...');
@@ -415,6 +492,7 @@ async function syncLocalDeckToCloud() {
     const userDocRef = docRef(db, "users", state.currentUser.uid);
     await setDocFn(userDocRef, {
       cards: state.cards,
+      reviewLog: reviewLog,
       lastSync: Date.now()
     });
     console.log('[Firebase] Cloud Sync completed successfully.');
@@ -429,9 +507,50 @@ async function syncLocalDeckToCloud() {
 function renderApp() {
   filterDeck();
   updateStats();
+  updateHabitUI();
   renderCategoryPills();
   renderCurrentCard();
   renderLibraryList();
+}
+
+// --- Streak & Daily Goal HUD ---
+function updateHabitUI() {
+  const todayCount = reviewLog[dateKey()] || 0;
+  const goal = getDailyGoal();
+  const streak = getStreak();
+  elStreakText.innerText = `🔥 ${streak} day${streak === 1 ? '' : 's'}`;
+  elGoalText.innerText = `${todayCount}/${goal} today`;
+  elGoalBar.style.width = `${Math.min(100, (todayCount / goal) * 100)}%`;
+  elGoalBar.classList.toggle('goal-met', todayCount >= goal);
+}
+
+// --- Review Activity Heatmap (last 15 weeks, GitHub-style) ---
+function renderHeatmap() {
+  const WEEKS = 15;
+  const goal = getDailyGoal();
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - ((WEEKS - 1) * 7 + today.getDay())); // back to a Sunday
+
+  elHeatmapGrid.innerHTML = '';
+  let total = 0;
+  for (const d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    const key = dateKey(d);
+    const count = reviewLog[key] || 0;
+    total += count;
+    let lvl = 0;
+    if (count > 0) {
+      if (count >= goal * 2) lvl = 4;
+      else if (count >= goal) lvl = 3;
+      else if (count >= goal / 2) lvl = 2;
+      else lvl = 1;
+    }
+    const cell = document.createElement('div');
+    cell.className = `hm hm-${lvl}`;
+    cell.title = `${key}: ${count} review${count === 1 ? '' : 's'}`;
+    elHeatmapGrid.appendChild(cell);
+  }
+  elHeatmapTotal.innerText = `${total} reviews · ${WEEKS} weeks`;
 }
 
 // --- Dynamic Categories / Decks ---
@@ -538,11 +657,23 @@ function renderCurrentCard() {
 
   const card = state.filteredDeck[state.currentIndex];
 
-  // Map to Front Face
+  // Map to Front Face (reverse mode shows the meaning and asks for the word)
+  const isReverse = studyDirection === 'reverse';
+  const btnSpeakFront = document.getElementById('btn-speak-word-front');
   elCardTagFront.innerText = card.category;
-  elCardWordFront.innerText = card.word;
-  elCardPronunciationFront.innerText = card.pronunciation || '';
-  elCardOriginFront.innerText = card.origin || 'Recall';
+  if (isReverse) {
+    elCardWordFront.innerText = card.meaning;
+    elCardWordFront.classList.add('reverse-text');
+    elCardPronunciationFront.innerText = 'What word is this?';
+    elCardOriginFront.innerText = 'Reverse Recall';
+    if (btnSpeakFront) btnSpeakFront.classList.add('hidden'); // saying the word would spoil it
+  } else {
+    elCardWordFront.innerText = card.word;
+    elCardWordFront.classList.remove('reverse-text');
+    elCardPronunciationFront.innerText = card.pronunciation || '';
+    elCardOriginFront.innerText = card.origin || 'Recall';
+    if (btnSpeakFront) btnSpeakFront.classList.remove('hidden');
+  }
   updateStatusLabel(elCardStatusFront, card.status);
 
   // Map to Back Face
@@ -622,6 +753,7 @@ async function scheduleReview(grade, dragDirectionAnim = '') {
   cardInMaster.interval = result.interval;
   cardInMaster.status = result.status;
   cardInMaster.nextReview = result.nextReview;
+  logReview(1);
   await syncLocalDeckToCloud();
 
   // Trigger dynamic swipe animation exits
@@ -662,6 +794,7 @@ async function undoLastReview() {
   if (card) Object.assign(card, lastReviewSnapshot.prev);
   state.currentIndex = lastReviewSnapshot.index;
   lastReviewSnapshot = null;
+  logReview(-1);
   clearTimeout(undoHideTimer);
   elUndoBtn.classList.add('hidden');
   await syncLocalDeckToCloud();
@@ -785,24 +918,21 @@ function hideOtherGlows(active = '') {
 // --- Card Manager: Tabs Switching ( Screenshot 1 Drawer Tabs ) ---
 function switchDrawerTab(tabName) {
   state.activeDrawerTab = tabName;
-  
+
   // Toggle Active tabs classes
   elDrawerTabs.forEach(btn => {
-    if (btn.getAttribute('data-tab') === tabName) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
   });
 
   // Toggle visible elements
-  if (tabName === 'create') {
-    elTabContentCreate.classList.remove('hidden');
-    elTabContentLibrary.classList.add('hidden');
-  } else {
-    elTabContentCreate.classList.add('hidden');
-    elTabContentLibrary.classList.remove('hidden');
-    renderLibraryList(); // Dynamic refresh list on tab select
+  elTabContentCreate.classList.toggle('hidden', tabName !== 'create');
+  elTabContentLibrary.classList.toggle('hidden', tabName !== 'library');
+  elTabContentStats.classList.toggle('hidden', tabName !== 'stats');
+
+  if (tabName === 'library') renderLibraryList(); // Dynamic refresh list on tab select
+  if (tabName === 'stats') {
+    elDailyGoalSelect.value = String(getDailyGoal());
+    renderHeatmap();
   }
 }
 
@@ -1224,7 +1354,26 @@ async function handleForgotPassword() {
   }
 }
 
-// --- Dictionary Auto-fill (free dictionaryapi.dev, English words) ---
+// --- Dictionary Lookup (free dictionaryapi.dev, English words) ---
+async function fetchDictionary(word) {
+  const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+  if (!res.ok) throw new Error(`"${word}" was not found in the dictionary.`);
+  const data = await res.json();
+  const entry = data[0];
+  const meaningBlock = (entry.meanings && entry.meanings[0]) || null;
+  const definitions = (meaningBlock && meaningBlock.definitions) || [];
+  const withExample = definitions.find(d => d.example);
+  const pos = meaningBlock && meaningBlock.partOfSpeech;
+  return {
+    word: entry.word,
+    type: pos ? pos.charAt(0).toUpperCase() + pos.slice(1) : '',
+    pronunciation: entry.phonetic || (((entry.phonetics || []).find(p => p.text) || {}).text || ''),
+    meaning: (definitions[0] && definitions[0].definition) || '',
+    example: withExample ? withExample.example : '',
+    origin: entry.origin || ''
+  };
+}
+
 async function autofillFromDictionary() {
   const word = document.getElementById('input-word').value.trim();
   if (!word) {
@@ -1235,12 +1384,7 @@ async function autofillFromDictionary() {
   elAutofillBtn.disabled = true;
   elAutofillBtn.innerText = '…';
   try {
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
-    if (!res.ok) throw new Error(`"${word}" was not found in the dictionary.`);
-    const data = await res.json();
-    const entry = data[0];
-    const meaningBlock = (entry.meanings && entry.meanings[0]) || null;
-    const definitions = (meaningBlock && meaningBlock.definitions) || [];
+    const dict = await fetchDictionary(word);
 
     const typeInput = document.getElementById('input-type');
     const pronInput = document.getElementById('input-pronunciation');
@@ -1248,25 +1392,95 @@ async function autofillFromDictionary() {
     const exampleInput = document.getElementById('input-example');
     const originInput = document.getElementById('input-origin');
 
-    if (meaningBlock && meaningBlock.partOfSpeech && !typeInput.value) {
-      typeInput.value = meaningBlock.partOfSpeech.charAt(0).toUpperCase() + meaningBlock.partOfSpeech.slice(1);
-    }
-    const phonetic = entry.phonetic || ((entry.phonetics || []).find(p => p.text) || {}).text;
-    if (phonetic && !pronInput.value) pronInput.value = phonetic;
-    if (definitions[0] && definitions[0].definition && !meaningInput.value) {
-      meaningInput.value = definitions[0].definition;
-    }
-    const withExample = definitions.find(d => d.example);
-    if (withExample && !exampleInput.value) exampleInput.value = withExample.example;
-    if (entry.origin && !originInput.value) originInput.value = entry.origin;
+    if (dict.type && !typeInput.value) typeInput.value = dict.type;
+    if (dict.pronunciation && !pronInput.value) pronInput.value = dict.pronunciation;
+    if (dict.meaning && !meaningInput.value) meaningInput.value = dict.meaning;
+    if (dict.example && !exampleInput.value) exampleInput.value = dict.example;
+    if (dict.origin && !originInput.value) originInput.value = dict.origin;
 
-    showToast(`Dictionary details loaded for "${entry.word}".`, 'success');
+    showToast(`Dictionary details loaded for "${dict.word}".`, 'success');
   } catch (e) {
     showToast(e.message.includes('not found') ? e.message : 'Dictionary lookup failed — check your internet connection.', 'error');
   } finally {
     elAutofillBtn.disabled = false;
     elAutofillBtn.innerText = '✨';
   }
+}
+
+// --- Quick Add: word in, dictionary does the rest ---
+async function handleQuickAdd() {
+  const word = elQuickWordInput.value.trim();
+  if (!word) {
+    showToast('Type a word to quick-add.', 'info');
+    elQuickWordInput.focus();
+    return;
+  }
+  if (state.cards.some(c => c.word.toLowerCase().trim() === word.toLowerCase())) {
+    showToast(`"${word}" is already in your library.`, 'info');
+    return;
+  }
+
+  elQuickAddBtn.disabled = true;
+  elQuickAddBtn.innerText = '…';
+  let dict = null;
+  try {
+    dict = await fetchDictionary(word);
+  } catch (e) { /* not found or offline — still add the bare card */ }
+
+  const newCard = normalizeCard({
+    id: `custom-${Date.now()}`,
+    word,
+    type: (dict && dict.type) || '',
+    category: state.activeCategory !== 'all' ? state.activeCategory : 'Vocabulary',
+    pronunciation: (dict && dict.pronunciation) || '',
+    language: 'en-US',
+    meaning: (dict && dict.meaning) || '(Quick-added — tap the card\'s edit button to write the meaning.)',
+    example: (dict && dict.example) || '',
+    origin: (dict && dict.origin) || '',
+    photo: null,
+    status: 'new',
+    nextReview: 0
+  });
+
+  state.cards.unshift(newCard);
+  await syncLocalDeckToCloud();
+  elQuickWordInput.value = '';
+  elQuickAddBtn.disabled = false;
+  elQuickAddBtn.innerText = 'Add';
+  renderApp();
+  showToast(dict
+    ? `"${word}" added with dictionary details!`
+    : `"${word}" added — remember to fill in its meaning.`, 'success');
+}
+
+// --- Study Direction Toggle ---
+function toggleStudyDirection() {
+  studyDirection = studyDirection === 'normal' ? 'reverse' : 'normal';
+  localStorage.setItem('recall_glass_direction', studyDirection);
+  elDirectionToggleBtn.classList.toggle('direction-active', studyDirection === 'reverse');
+  elDirectionToggleBtn.title = studyDirection === 'reverse'
+    ? 'Study Direction: Meaning → Word (tap to switch)'
+    : 'Study Direction: Word → Meaning (tap to switch)';
+  renderApp();
+  showToast(studyDirection === 'reverse'
+    ? 'Reverse mode: you see the meaning, recall the word.'
+    : 'Normal mode: you see the word, recall the meaning.', 'info');
+}
+
+// --- PWA Share Target: text shared from other apps lands here ---
+function handleSharedText() {
+  const params = new URLSearchParams(window.location.search);
+  const shared = (params.get('text') || params.get('title') || '').trim();
+  if (!shared) return;
+  // Clean the URL so refreshes don't re-trigger
+  history.replaceState(null, '', window.location.pathname);
+
+  const word = shared.split(/\s+/).slice(0, 6).join(' ');
+  switchDrawerTab('create');
+  populateCategorySelect();
+  document.getElementById('input-word').value = word;
+  openManagerDrawer();
+  showToast('Shared text captured — tap ✨ to auto-fill, then save!', 'info');
 }
 
 // Drawers Toggle controls
@@ -1434,6 +1648,27 @@ function setupEventListeners() {
 
   // Dictionary auto-fill
   elAutofillBtn.addEventListener('click', autofillFromDictionary);
+
+  // Quick add (button + Enter key)
+  elQuickAddBtn.addEventListener('click', handleQuickAdd);
+  elQuickWordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleQuickAdd();
+    }
+  });
+
+  // Study direction toggle
+  elDirectionToggleBtn.addEventListener('click', toggleStudyDirection);
+  elDirectionToggleBtn.classList.toggle('direction-active', studyDirection === 'reverse');
+
+  // Daily goal setting
+  elDailyGoalSelect.addEventListener('change', () => {
+    setDailyGoal(parseInt(elDailyGoalSelect.value, 10));
+    updateHabitUI();
+    renderHeatmap();
+    showToast(`Daily goal set to ${elDailyGoalSelect.value} reviews.`, 'success');
+  });
 
   // Password reset
   elForgotPasswordBtn.addEventListener('click', handleForgotPassword);
