@@ -1,6 +1,6 @@
 /* ==========================================================================
-   RecallGlass — Core Application Logic v6 (Streaks, Heatmap, Quick Add,
-   Share Target & Reverse Study)
+   RecallGlass — Core Application Logic v7 (Per-Card Cloud Sync, Timestamp
+   Merge & Deletion Tombstones)
    ========================================================================== */
 
 import { firebaseConfig } from './firebase-config.js';
@@ -113,6 +113,12 @@ let db = null;
 let docRef = null;
 let setDocFn = null;
 let getDocFn = null;
+let collectionFn = null;
+let getDocsFn = null;
+let writeBatchFn = null;
+let deleteDocFn = null;
+let updateDocFn = null;
+let deleteFieldFn = null;
 let signInFn = null;
 let signUpFn = null;
 let signOutFn = null;
@@ -137,6 +143,12 @@ async function initFirebase() {
       docRef = firebaseFirestoreModule.doc;
       setDocFn = firebaseFirestoreModule.setDoc;
       getDocFn = firebaseFirestoreModule.getDoc;
+      collectionFn = firebaseFirestoreModule.collection;
+      getDocsFn = firebaseFirestoreModule.getDocs;
+      writeBatchFn = firebaseFirestoreModule.writeBatch;
+      deleteDocFn = firebaseFirestoreModule.deleteDoc;
+      updateDocFn = firebaseFirestoreModule.updateDoc;
+      deleteFieldFn = firebaseFirestoreModule.deleteField;
       signInFn = firebaseAuthModule.signInWithEmailAndPassword;
       signUpFn = firebaseAuthModule.createUserWithEmailAndPassword;
       signOutFn = firebaseAuthModule.signOut;
@@ -216,6 +228,31 @@ function logReview(delta) {
 // --- Study Direction (normal: word -> meaning, reverse: meaning -> word) ---
 let studyDirection = localStorage.getItem('recall_glass_direction') === 'reverse' ? 'reverse' : 'normal';
 
+// --- Deletion Tombstones (so a delete on one device wins over an old copy on another) ---
+let deletedTombstones = {};
+try {
+  deletedTombstones = JSON.parse(localStorage.getItem('recall_glass_deleted')) || {};
+} catch (e) {
+  deletedTombstones = {};
+}
+// Prune tombstones older than 90 days to keep the map small
+(() => {
+  const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000; // DAY_MS is declared later (TDZ)
+  for (const id in deletedTombstones) {
+    if (deletedTombstones[id] < cutoff) delete deletedTombstones[id];
+  }
+})();
+
+function saveTombstones() {
+  try {
+    localStorage.setItem('recall_glass_deleted', JSON.stringify(deletedTombstones));
+  } catch (e) { /* non-critical */ }
+}
+
+function isTombstoned(card) {
+  return (deletedTombstones[card.id] || 0) >= (card.updatedAt || 0);
+}
+
 /* ==========================================================================
    SM-2 Spaced Repetition Engine
    Cards carry: interval (days), ease (growth factor, starts 2.5), nextReview.
@@ -277,6 +314,12 @@ function normalizeCard(c) {
     else if (c.nextReview > Date.now()) c.interval = 3;
     else c.interval = 0;
   }
+  // Sync metadata: creation time (for stable ordering) & last-modified (for merge)
+  if (c.createdAt === undefined) {
+    const m = /^custom-(\d+)/.exec(c.id || '');
+    c.createdAt = m ? parseInt(m[1], 10) : 0;
+  }
+  if (c.updatedAt === undefined) c.updatedAt = 0;
   return c;
 }
 
@@ -434,10 +477,10 @@ function loadLocalDeck() {
       state.cards.forEach(normalizeCard);
     } catch (e) {
       console.error('Failed to parse LocalStorage cards.', e);
-      state.cards = [...FALLBACK_SEED_CARDS];
+      state.cards = FALLBACK_SEED_CARDS.map(c => normalizeCard({ ...c }));
     }
   } else {
-    state.cards = [...FALLBACK_SEED_CARDS];
+    state.cards = FALLBACK_SEED_CARDS.map(c => normalizeCard({ ...c }));
     saveLocalDeck();
   }
 }
@@ -451,29 +494,177 @@ function saveLocalDeck() {
   }
 }
 
-// Cloud Firestore Sync controllers
-async function fetchCloudDeck() {
-  if (!state.currentUser || !isFirebaseConfigured) return;
-  try {
-    const userDocRef = docRef(db, "users", state.currentUser.uid);
-    const docSnap = await getDocFn(userDocRef);
-    
-    if (docSnap.exists()) {
-      state.cards = docSnap.data().cards || [];
-      state.cards.forEach(normalizeCard);
+/* ==========================================================================
+   Cloud Sync v2 — per-card documents
+   users/{uid}            -> meta: reviewLog, deleted tombstones, dailyGoal
+   users/{uid}/cards/{id} -> one document per card (own 1MB budget, so
+                             base64 photos are safe; reviews write 1 card,
+                             not the whole deck)
+   Conflicts are resolved per card by updatedAt (newest edit wins);
+   deletions win via tombstones.
+   ========================================================================== */
+let cloudErrorNotified = false;
 
-      // Merge cloud review log (take the higher count per day — safe on multi-device)
-      const cloudLog = docSnap.data().reviewLog || {};
-      for (const day in cloudLog) {
-        reviewLog[day] = Math.max(reviewLog[day] || 0, cloudLog[day]);
-      }
-      saveReviewLog();
-    } else {
-      // Seed new Cloud profile with default seed cards
-      console.log('[Firestore] Seeding new user profile with default cards...');
-      state.cards = [...FALLBACK_SEED_CARDS];
-      await syncLocalDeckToCloud();
+function cloudReady() {
+  return !!(state.currentUser && isFirebaseConfigured && db);
+}
+
+function metaDocRef() {
+  return docRef(db, 'users', state.currentUser.uid);
+}
+
+function cardDocRef(id) {
+  return docRef(db, 'users', state.currentUser.uid, 'cards', id);
+}
+
+// Firestore rejects undefined values — strip them via JSON round-trip
+function sanitizeCard(c) {
+  return JSON.parse(JSON.stringify(c));
+}
+
+function metaPayload() {
+  return {
+    reviewLog: reviewLog,
+    deleted: deletedTombstones,
+    dailyGoal: getDailyGoal(),
+    lastSync: Date.now(),
+    schemaVersion: 2
+  };
+}
+
+function reportCloudError(error, action) {
+  console.error(`[Firebase] ${action} failed:`, error);
+  if (!cloudErrorNotified) {
+    cloudErrorNotified = true;
+    showToast('Cloud sync failed — changes are saved on this device and will sync when you\'re back online.', 'error');
+  }
+}
+
+// Write specific changed cards (fire-and-forget from callers; meta rides along)
+async function cloudWriteCards(cards) {
+  if (!cloudReady()) return;
+  try {
+    const batch = writeBatchFn(db);
+    cards.forEach(c => batch.set(cardDocRef(c.id), sanitizeCard(c)));
+    batch.set(metaDocRef(), metaPayload(), { merge: true });
+    await batch.commit();
+    cloudErrorNotified = false;
+  } catch (error) {
+    reportCloudError(error, 'Card write');
+  }
+}
+
+// Write the entire deck in chunks (import, reset, migration, registration)
+async function cloudWriteAllCards(cards) {
+  if (!cloudReady()) return;
+  try {
+    for (let i = 0; i < cards.length; i += 400) {
+      const batch = writeBatchFn(db);
+      cards.slice(i, i + 400).forEach(c => batch.set(cardDocRef(c.id), sanitizeCard(c)));
+      batch.set(metaDocRef(), metaPayload(), { merge: true });
+      await batch.commit();
     }
+    if (cards.length === 0) {
+      await setDocFn(metaDocRef(), metaPayload(), { merge: true });
+    }
+    cloudErrorNotified = false;
+  } catch (error) {
+    reportCloudError(error, 'Full deck write');
+  }
+}
+
+async function cloudDeleteCard(id) {
+  if (!cloudReady()) return;
+  try {
+    const batch = writeBatchFn(db);
+    batch.delete(cardDocRef(id));
+    batch.set(metaDocRef(), metaPayload(), { merge: true }); // carries the tombstone
+    await batch.commit();
+  } catch (error) {
+    reportCloudError(error, 'Card delete');
+  }
+}
+
+async function cloudWriteMeta() {
+  if (!cloudReady()) return;
+  try {
+    await setDocFn(metaDocRef(), metaPayload(), { merge: true });
+  } catch (error) {
+    reportCloudError(error, 'Meta write');
+  }
+}
+
+async function fetchCloudDeck() {
+  if (!cloudReady()) return;
+  try {
+    const metaSnap = await getDocFn(metaDocRef());
+    const meta = metaSnap.exists() ? metaSnap.data() : null;
+
+    // 1) Load cloud cards — migrating the legacy single-document schema if found
+    let cloudCards = [];
+    if (meta && Array.isArray(meta.cards) && meta.cards.length > 0) {
+      console.log('[Firestore] Legacy deck found — migrating to per-card documents...');
+      cloudCards = meta.cards.map(c => normalizeCard({ ...c }));
+      await cloudWriteAllCards(cloudCards);
+      await updateDocFn(metaDocRef(), { cards: deleteFieldFn(), schemaVersion: 2 });
+      console.log(`[Firestore] Migration complete: ${cloudCards.length} cards moved.`);
+    } else {
+      const snap = await getDocsFn(collectionFn(db, 'users', state.currentUser.uid, 'cards'));
+      cloudCards = snap.docs.map(d => normalizeCard(d.data()));
+    }
+
+    // 2) Merge deletion tombstones (newest deletion wins everywhere)
+    const cloudDeleted = (meta && meta.deleted) || {};
+    for (const id in cloudDeleted) {
+      deletedTombstones[id] = Math.max(deletedTombstones[id] || 0, cloudDeleted[id]);
+    }
+    saveTombstones();
+
+    // 3) Merge local mirror against cloud, per card, by updatedAt
+    let localCards = [];
+    try {
+      localCards = (JSON.parse(localStorage.getItem('recall_glass_cards')) || []).map(c => normalizeCard(c));
+    } catch (e) { /* corrupted mirror — cloud wins */ }
+
+    const byId = new Map();
+    cloudCards.forEach(c => byId.set(c.id, c));
+    const toUpload = [];
+    localCards.forEach(lc => {
+      const cc = byId.get(lc.id);
+      if (!cc) {
+        // Local-only card: new here, unless another device deleted it
+        if (!isTombstoned(lc)) {
+          byId.set(lc.id, lc);
+          toUpload.push(lc);
+        }
+      } else if ((lc.updatedAt || 0) > (cc.updatedAt || 0)) {
+        byId.set(lc.id, lc);
+        toUpload.push(lc);
+      }
+    });
+
+    const merged = [...byId.values()].filter(c => !isTombstoned(c));
+    merged.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    state.cards = merged;
+
+    // 4) Brand-new cloud profile: seed it
+    if (state.cards.length === 0 && !meta) {
+      console.log('[Firestore] Seeding new user profile with default cards...');
+      state.cards = FALLBACK_SEED_CARDS.map(c => normalizeCard({ ...c }));
+      await cloudWriteAllCards(state.cards);
+    } else if (toUpload.length > 0) {
+      console.log(`[Firestore] Uploading ${toUpload.length} newer local card(s) to cloud.`);
+      cloudWriteCards(toUpload);
+    }
+
+    // 5) Merge review log (higher count per day wins) & adopt cloud daily goal
+    const cloudLog = (meta && meta.reviewLog) || {};
+    for (const day in cloudLog) {
+      reviewLog[day] = Math.max(reviewLog[day] || 0, cloudLog[day]);
+    }
+    saveReviewLog();
+    if (meta && meta.dailyGoal > 0) setDailyGoal(meta.dailyGoal);
+
     // Mirror locally
     saveLocalDeck();
   } catch (error) {
@@ -483,24 +674,10 @@ async function fetchCloudDeck() {
   }
 }
 
+// Full sync: local mirror + entire deck to cloud (guests: local only)
 async function syncLocalDeckToCloud() {
-  if (!state.currentUser || !isFirebaseConfigured) {
-    saveLocalDeck();
-    return;
-  }
-  try {
-    const userDocRef = docRef(db, "users", state.currentUser.uid);
-    await setDocFn(userDocRef, {
-      cards: state.cards,
-      reviewLog: reviewLog,
-      lastSync: Date.now()
-    });
-    console.log('[Firebase] Cloud Sync completed successfully.');
-    saveLocalDeck();
-  } catch (error) {
-    console.error('[Firebase] Failed to sync cards to cloud:', error);
-    saveLocalDeck(); // Always save locally anyway
-  }
+  saveLocalDeck();
+  await cloudWriteAllCards(state.cards);
 }
 
 // --- App Render Controller ---
@@ -753,8 +930,10 @@ async function scheduleReview(grade, dragDirectionAnim = '') {
   cardInMaster.interval = result.interval;
   cardInMaster.status = result.status;
   cardInMaster.nextReview = result.nextReview;
+  cardInMaster.updatedAt = Date.now();
   logReview(1);
-  await syncLocalDeckToCloud();
+  saveLocalDeck();
+  cloudWriteCards([cardInMaster]); // only this card goes over the wire
 
   // Trigger dynamic swipe animation exits
   const animMap = { again: 'swipe-left', hard: 'swipe-up', good: 'swipe-down', easy: 'swipe-right' };
@@ -791,24 +970,30 @@ function showUndoButton() {
 async function undoLastReview() {
   if (!lastReviewSnapshot) return;
   const card = state.cards.find(c => c.id === lastReviewSnapshot.cardId);
-  if (card) Object.assign(card, lastReviewSnapshot.prev);
+  if (card) {
+    Object.assign(card, lastReviewSnapshot.prev);
+    card.updatedAt = Date.now(); // an undo is itself an edit — it must win the merge
+  }
   state.currentIndex = lastReviewSnapshot.index;
   lastReviewSnapshot = null;
   logReview(-1);
   clearTimeout(undoHideTimer);
   elUndoBtn.classList.add('hidden');
-  await syncLocalDeckToCloud();
+  saveLocalDeck();
+  if (card) cloudWriteCards([card]);
   renderApp();
   showToast('Last review undone — the card is back.', 'success');
 }
 
 async function resetActiveSession() {
   if (!confirm('Reset ALL learning progress? Every card goes back to "new" and your whole library returns to the review queue.')) return;
+  const now = Date.now();
   state.cards.forEach(c => {
     c.status = 'new';
     c.nextReview = 0;
     c.interval = 0;
     c.ease = 2.5;
+    c.updatedAt = now;
   });
   await syncLocalDeckToCloud();
   state.currentIndex = 0;
@@ -988,7 +1173,10 @@ function renderLibraryList() {
 async function deleteCard(id) {
   if (confirm('Are you sure you want to permanently delete this card from your library?')) {
     state.cards = state.cards.filter(c => c.id !== id);
-    await syncLocalDeckToCloud();
+    deletedTombstones[id] = Date.now(); // so other devices delete it too instead of restoring it
+    saveTombstones();
+    saveLocalDeck();
+    cloudDeleteCard(id);
     renderApp();
     showToast('Card deleted.', 'info');
   }
@@ -1083,9 +1271,11 @@ async function handleAddCardFormSubmit(e) {
       card.example = example;
       card.origin = origin;
       card.photo = currentUploadedPhotoBase64;
-      
+      card.updatedAt = Date.now();
+
       state.currentIndex = 0;
-      await syncLocalDeckToCloud();
+      saveLocalDeck();
+      cloudWriteCards([card]);
       showToast(`"${word}" updated successfully!`, 'success');
     }
     cancelCardEdit();
@@ -1102,11 +1292,14 @@ async function handleAddCardFormSubmit(e) {
       origin,
       photo: currentUploadedPhotoBase64,
       status: 'new',
-      nextReview: 0
+      nextReview: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
 
     state.cards.unshift(newCard);
-    await syncLocalDeckToCloud();
+    saveLocalDeck();
+    cloudWriteCards([newCard]);
     elAddCardForm.reset();
     populateCategorySelect(category); // keep the just-used category selected for quick batch adding
     showToast(`"${word}" saved successfully!`, 'success');
@@ -1168,8 +1361,9 @@ async function applyImport(mode) {
   elImportModal.classList.add('hidden');
   if (!pendingImportCards) return;
 
+  const now = Date.now();
   const imported = pendingImportCards.map((c, i) =>
-    normalizeCard({ ...c, id: c.id || `custom-${Date.now()}-${i}` })
+    normalizeCard({ ...c, id: c.id || `custom-${now}-${i}`, updatedAt: now })
   );
   pendingImportCards = null;
 
@@ -1179,6 +1373,13 @@ async function applyImport(mode) {
     state.cards = [...uniqueImport, ...state.cards];
     showToast(`${uniqueImport.length} new cards merged into your library.`, 'success');
   } else {
+    // Replace-all: tombstone every card that is not part of the import,
+    // so other devices drop them too instead of restoring them
+    const importedIds = new Set(imported.map(c => c.id));
+    state.cards.forEach(c => {
+      if (!importedIds.has(c.id)) deletedTombstones[c.id] = now;
+    });
+    saveTombstones();
     state.cards = imported;
     showToast(`Library replaced with ${imported.length} imported cards.`, 'success');
   }
@@ -1439,11 +1640,14 @@ async function handleQuickAdd() {
     origin: (dict && dict.origin) || '',
     photo: null,
     status: 'new',
-    nextReview: 0
+    nextReview: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   });
 
   state.cards.unshift(newCard);
-  await syncLocalDeckToCloud();
+  saveLocalDeck();
+  cloudWriteCards([newCard]);
   elQuickWordInput.value = '';
   elQuickAddBtn.disabled = false;
   elQuickAddBtn.innerText = 'Add';
@@ -1667,6 +1871,7 @@ function setupEventListeners() {
     setDailyGoal(parseInt(elDailyGoalSelect.value, 10));
     updateHabitUI();
     renderHeatmap();
+    cloudWriteMeta();
     showToast(`Daily goal set to ${elDailyGoalSelect.value} reviews.`, 'success');
   });
 
