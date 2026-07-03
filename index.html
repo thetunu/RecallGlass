@@ -17,6 +17,11 @@
   <meta name="theme-color" content="#0d111d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- PWA Install Manifest & Icons -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 </head>
 <body>
 
@@ -77,14 +82,8 @@
       </div>
     </section>
 
-    <!-- Category Pills Navigation -->
-    <nav class="category-nav scroll-hide">
-      <button class="cat-pill active" data-category="all">All Cards</button>
-      <button class="cat-pill" data-category="Vocabulary">Vocabulary</button>
-      <button class="cat-pill" data-category="Philosophy">Philosophy</button>
-      <button class="cat-pill" data-category="Language">Language</button>
-      <button class="cat-pill" data-category="Emotions">Emotions</button>
-    </nav>
+    <!-- Category Pills Navigation (rendered dynamically from the deck) -->
+    <nav id="category-nav" class="category-nav scroll-hide"></nav>
 
     <!-- Main Flashcard Board -->
     <main class="card-arena">
@@ -174,10 +173,16 @@
       </div>
       
       <!-- 4-Directional Swipe HUD glows -->
-      <div id="swipe-indicator-master" class="swipe-glow mastered-glow">Mastered (7d) ➡️</div>
-      <div id="swipe-indicator-again" class="swipe-glow again-glow">⬅️ Again (Now)</div>
-      <div id="swipe-indicator-hard" class="swipe-glow hard-glow">Hard (1d) ⬆️</div>
-      <div id="swipe-indicator-good" class="swipe-glow good-glow">Good (3d) ⬇️</div>
+      <div id="swipe-indicator-master" class="swipe-glow mastered-glow">Easy ➡️</div>
+      <div id="swipe-indicator-again" class="swipe-glow again-glow">⬅️ Again</div>
+      <div id="swipe-indicator-hard" class="swipe-glow hard-glow">Hard ⬆️</div>
+      <div id="swipe-indicator-good" class="swipe-glow good-glow">Good ⬇️</div>
+
+      <!-- Undo Last Review -->
+      <button id="btn-undo-review" class="undo-btn glass-element hidden" title="Undo Last Review">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"></path><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path></svg>
+        Undo
+      </button>
     </main>
 
     <!-- Bottom Controls Area -->
@@ -192,19 +197,19 @@
       <!-- Back View (Answer Revealed) Controls: Spaced Repetition -->
       <div id="controls-back" class="controls-group hidden">
         <button id="btn-srs-again" class="srs-btn srs-again" title="Recall Failed (Show Again Soon)">
-          <span class="srs-pill">Again</span>
-          <label>Immediate</label>
+          <span class="srs-pill" id="srs-label-again">Again</span>
+          <label>Forgot</label>
         </button>
-        <button id="btn-srs-1day" class="srs-btn srs-1day" title="Review in 1 Day">
-          <span class="srs-pill">1 Day</span>
+        <button id="btn-srs-1day" class="srs-btn srs-1day" title="Barely Recalled (Short Interval)">
+          <span class="srs-pill" id="srs-label-hard">1d</span>
           <label>Hard</label>
         </button>
-        <button id="btn-srs-3days" class="srs-btn srs-3days" title="Review in 3 Days">
-          <span class="srs-pill">3 Days</span>
+        <button id="btn-srs-3days" class="srs-btn srs-3days" title="Recalled with Effort">
+          <span class="srs-pill" id="srs-label-good">3d</span>
           <label>Good</label>
         </button>
-        <button id="btn-srs-7days" class="srs-btn srs-7days" title="Recall is Perfect (Mastered for 7 Days)">
-          <span class="srs-pill">7 Days</span>
+        <button id="btn-srs-7days" class="srs-btn srs-7days" title="Recalled Instantly (Longest Interval)">
+          <span class="srs-pill" id="srs-label-easy">7d</span>
           <label>Easy</label>
         </button>
       </div>
@@ -247,7 +252,10 @@
           <div class="form-row">
             <div class="form-group">
               <label for="input-word">Word / Idea *</label>
-              <input type="text" id="input-word" placeholder="e.g. Sonder" required autocomplete="off">
+              <div class="input-with-btn">
+                <input type="text" id="input-word" placeholder="e.g. Sonder" required autocomplete="off">
+                <button type="button" id="btn-autofill" class="autofill-btn" title="Auto-fill details from the dictionary (English words)">✨</button>
+              </div>
             </div>
             <div class="form-group">
               <label for="input-type">Word Type / Part</label>
@@ -257,13 +265,9 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="input-category">Category *</label>
-              <select id="input-category" required>
-                <option value="Vocabulary">Vocabulary</option>
-                <option value="Philosophy">Philosophy</option>
-                <option value="Language">Language</option>
-                <option value="Emotions">Emotions</option>
-              </select>
+              <label for="input-category">Category / Deck *</label>
+              <select id="input-category" required></select>
+              <input type="text" id="input-new-category" class="hidden" placeholder="Type new category name..." autocomplete="off" style="margin-top: 8px;">
             </div>
             <div class="form-group">
               <label for="input-pronunciation">Pronunciation Key</label>
@@ -340,7 +344,7 @@
       <div class="version-selector-container" style="margin-top: auto; padding: 12px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
         <label for="select-app-version" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600;">App Version</label>
         <select id="select-app-version" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: var(--text-normal); font-size: 11px; padding: 4px 8px; outline: none; cursor: pointer; transition: all 0.2s;">
-          <option value="latest">Latest Version (v1.5)</option>
+          <option value="latest">Latest Version (v1.6)</option>
           <option value="v1.4">Version 1.4</option>
           <option value="v1.3">Version 1.3</option>
         </select>
@@ -383,6 +387,8 @@
             <input type="password" id="input-auth-password" placeholder="Min. 6 characters" required autocomplete="off">
           </div>
 
+          <button type="button" id="btn-forgot-password" class="link-btn">Forgot password?</button>
+
           <button type="submit" id="btn-auth-submit" class="btn btn-primary" style="margin-top: 6px;">Sign In</button>
         </form>
       </div>
@@ -405,6 +411,22 @@
     </section>
 
   </div>
+
+  <!-- Import Choice Modal -->
+  <div id="import-modal" class="modal-overlay hidden">
+    <div class="modal-box glass-element">
+      <h3>Import Flashcards</h3>
+      <p id="modal-import-message">Merge the imported cards into your deck, or replace your whole library?</p>
+      <div class="modal-buttons">
+        <button id="btn-import-merge" class="btn btn-primary">Merge Into Deck</button>
+        <button id="btn-import-overwrite" class="btn btn-danger">Replace Everything</button>
+        <button id="btn-import-cancel" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div id="toast-container" class="toast-container"></div>
 
   <!-- Update Toast Notification -->
   <div id="update-toast" class="update-toast">

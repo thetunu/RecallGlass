@@ -1,5 +1,5 @@
 /* ==========================================================================
-   RecallGlass — Core Application Logic v4 (Gestures, Tabs & Firebase Sync)
+   RecallGlass — Core Application Logic v5 (SM-2 SRS, Custom Decks & Undo)
    ========================================================================== */
 
 import { firebaseConfig } from './firebase-config.js';
@@ -115,6 +115,7 @@ let getDocFn = null;
 let signInFn = null;
 let signUpFn = null;
 let signOutFn = null;
+let resetPasswordFn = null;
 let authStateListener = null;
 
 const isFirebaseConfigured = firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY_HERE";
@@ -138,6 +139,7 @@ async function initFirebase() {
       signInFn = firebaseAuthModule.signInWithEmailAndPassword;
       signUpFn = firebaseAuthModule.createUserWithEmailAndPassword;
       signOutFn = firebaseAuthModule.signOut;
+      resetPasswordFn = firebaseAuthModule.sendPasswordResetEmail;
       authStateListener = firebaseAuthModule.onAuthStateChanged;
       
       console.log('[Firebase] Cloud Database initialized successfully.');
@@ -151,6 +153,75 @@ async function initFirebase() {
 
 // --- Global Upload Cache ---
 let currentUploadedPhotoBase64 = null;
+
+// --- Undo & Import Working Memory ---
+let lastReviewSnapshot = null;
+let undoHideTimer = null;
+let pendingImportCards = null;
+
+/* ==========================================================================
+   SM-2 Spaced Repetition Engine
+   Cards carry: interval (days), ease (growth factor, starts 2.5), nextReview.
+   Each success grows the interval (1d -> 3d -> ~7d -> ~18d -> ...), a lapse
+   resets it. A card is "mastered" once its interval reaches maturity.
+   ========================================================================== */
+const MATURE_INTERVAL_DAYS = 21;
+const MAX_INTERVAL_DAYS = 365;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function computeSchedule(card, grade) {
+  let ease = card.ease || 2.5;
+  let interval = card.interval || 0;
+
+  switch (grade) {
+    case 'again':
+      ease = Math.max(1.3, ease - 0.2);
+      interval = 0; // back into the current session queue
+      break;
+    case 'hard':
+      ease = Math.max(1.3, ease - 0.15);
+      interval = interval < 1 ? 1 : Math.max(interval + 1, Math.round(interval * 1.2));
+      break;
+    case 'good':
+      if (interval < 1) interval = 1;
+      else if (interval < 3) interval = 3;
+      else interval = Math.round(interval * ease);
+      break;
+    case 'easy':
+      ease = ease + 0.15;
+      interval = interval < 1 ? 3 : Math.max(interval + 2, Math.round(interval * ease * 1.3));
+      break;
+  }
+
+  interval = Math.min(interval, MAX_INTERVAL_DAYS);
+
+  return {
+    ease: Math.round(ease * 100) / 100,
+    interval,
+    status: interval >= MATURE_INTERVAL_DAYS ? 'mastered' : 'review',
+    nextReview: interval > 0 ? Date.now() + interval * DAY_MS : 0
+  };
+}
+
+function formatInterval(days) {
+  if (days < 1) return 'Now';
+  if (days < 30) return `${days}d`;
+  if (days < 365) return `${Math.round(days / 30)}mo`;
+  return `${Math.round(days / 365 * 10) / 10}yr`;
+}
+
+// Upgrade cards saved by older versions (fixed 1/3/7-day scheduler) in place.
+function normalizeCard(c) {
+  if (c.nextReview === undefined) c.nextReview = 0;
+  if (!c.status) c.status = 'new';
+  if (c.ease === undefined) c.ease = 2.5;
+  if (c.interval === undefined) {
+    if (c.status === 'mastered') c.interval = 7;
+    else if (c.nextReview > Date.now()) c.interval = 3;
+    else c.interval = 0;
+  }
+  return c;
+}
 
 // --- DOM Elements ---
 const elHeaderManagerBtn = document.getElementById('btn-open-manager');
@@ -193,7 +264,7 @@ const elDrawerTabs = document.querySelectorAll('.drawer-tab');
 const elTabContentCreate = document.getElementById('drawer-tab-content-create');
 const elTabContentLibrary = document.getElementById('drawer-tab-content-library');
 
-const elCategoryPills = document.querySelectorAll('.cat-pill');
+const elCategoryNav = document.getElementById('category-nav');
 const elCardContainer = document.getElementById('flashcard-container');
 const elCard = document.getElementById('flashcard');
 const elCompletionView = document.getElementById('deck-completion-view');
@@ -231,6 +302,21 @@ const elBtnSRSAgain = document.getElementById('btn-srs-again');
 const elBtnSRS1Day = document.getElementById('btn-srs-1day');
 const elBtnSRS3Days = document.getElementById('btn-srs-3days');
 const elBtnSRS7Days = document.getElementById('btn-srs-7days');
+const elSRSLabelHard = document.getElementById('srs-label-hard');
+const elSRSLabelGood = document.getElementById('srs-label-good');
+const elSRSLabelEasy = document.getElementById('srs-label-easy');
+
+// Undo, Import Modal, Toasts, Autofill & New Category
+const elUndoBtn = document.getElementById('btn-undo-review');
+const elImportModal = document.getElementById('import-modal');
+const elImportMergeBtn = document.getElementById('btn-import-merge');
+const elImportOverwriteBtn = document.getElementById('btn-import-overwrite');
+const elImportCancelBtn = document.getElementById('btn-import-cancel');
+const elToastContainer = document.getElementById('toast-container');
+const elAutofillBtn = document.getElementById('btn-autofill');
+const elCategorySelect = document.getElementById('input-category');
+const elNewCategoryInput = document.getElementById('input-new-category');
+const elForgotPasswordBtn = document.getElementById('btn-forgot-password');
 
 // Manager Form Elements
 const elAddCardForm = document.getElementById('add-card-form');
@@ -256,6 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await initFirebase();
   setupFirebaseLifecycle();
   await loadCards();
+  populateCategorySelect();
   renderApp();
 });
 
@@ -274,9 +361,7 @@ function loadLocalDeck() {
   if (localData) {
     try {
       state.cards = JSON.parse(localData);
-      state.cards.forEach(c => {
-        if (c.nextReview === undefined) c.nextReview = 0;
-      });
+      state.cards.forEach(normalizeCard);
     } catch (e) {
       console.error('Failed to parse LocalStorage cards.', e);
       state.cards = [...FALLBACK_SEED_CARDS];
@@ -288,7 +373,12 @@ function loadLocalDeck() {
 }
 
 function saveLocalDeck() {
-  localStorage.setItem('recall_glass_cards', JSON.stringify(state.cards));
+  try {
+    localStorage.setItem('recall_glass_cards', JSON.stringify(state.cards));
+  } catch (e) {
+    console.error('[Storage] LocalStorage save failed:', e);
+    showToast('Local storage is full! Photos take a lot of space — remove some, or sign in so cards live in the cloud.', 'error');
+  }
 }
 
 // Cloud Firestore Sync controllers
@@ -300,9 +390,7 @@ async function fetchCloudDeck() {
     
     if (docSnap.exists()) {
       state.cards = docSnap.data().cards || [];
-      state.cards.forEach(c => {
-        if (c.nextReview === undefined) c.nextReview = 0;
-      });
+      state.cards.forEach(normalizeCard);
     } else {
       // Seed new Cloud profile with default seed cards
       console.log('[Firestore] Seeding new user profile with default cards...');
@@ -341,8 +429,62 @@ async function syncLocalDeckToCloud() {
 function renderApp() {
   filterDeck();
   updateStats();
+  renderCategoryPills();
   renderCurrentCard();
   renderLibraryList();
+}
+
+// --- Dynamic Categories / Decks ---
+function getAllCategories() {
+  const set = new Set(state.cards.map(c => c.category).filter(Boolean));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+function renderCategoryPills() {
+  const categories = getAllCategories();
+  if (state.activeCategory !== 'all' && !categories.includes(state.activeCategory)) {
+    state.activeCategory = 'all';
+  }
+
+  elCategoryNav.innerHTML = '';
+  const makePill = (label, value) => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-pill' + (state.activeCategory === value ? ' active' : '');
+    btn.innerText = label;
+    btn.addEventListener('click', () => {
+      state.activeCategory = value;
+      state.currentIndex = 0;
+      renderApp();
+    });
+    elCategoryNav.appendChild(btn);
+  };
+
+  makePill('All Cards', 'all');
+  categories.forEach(cat => makePill(cat, cat));
+}
+
+function populateCategorySelect(selectedValue = '') {
+  const categories = getAllCategories();
+  if (categories.length === 0) categories.push('Vocabulary');
+
+  elCategorySelect.innerHTML = '';
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.innerText = cat;
+    elCategorySelect.appendChild(opt);
+  });
+
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__';
+  newOpt.innerText = '➕ New Category…';
+  elCategorySelect.appendChild(newOpt);
+
+  if (selectedValue && categories.includes(selectedValue)) {
+    elCategorySelect.value = selectedValue;
+  }
+  elNewCategoryInput.classList.add('hidden');
+  elNewCategoryInput.value = '';
 }
 
 function filterDeck() {
@@ -362,8 +504,9 @@ function filterDeck() {
 function updateStats() {
   const now = Date.now();
   const total = state.cards.length;
-  
-  const mastered = state.cards.filter(c => c.nextReview > now).length;
+
+  // Mastered = card interval has matured, not merely "not due right now"
+  const mastered = state.cards.filter(c => (c.interval || 0) >= MATURE_INTERVAL_DAYS).length;
   const dueToday = state.cards.filter(c => !c.nextReview || c.nextReview <= now).length;
   
   const percentage = total > 0 ? Math.round((mastered / total) * 100) : 0;
@@ -409,7 +552,12 @@ function renderCurrentCard() {
   elCardExampleBack.innerHTML = card.example ? `"${card.example}"` : 'No custom example sentence provided.';
   elCardOriginBack.innerText = card.origin || 'Recall';
   updateStatusLabel(elCardStatusBack, card.status);
-  
+
+  // Preview what each grade would schedule for THIS card
+  elSRSLabelHard.innerText = formatInterval(computeSchedule(card, 'hard').interval);
+  elSRSLabelGood.innerText = formatInterval(computeSchedule(card, 'good').interval);
+  elSRSLabelEasy.innerText = formatInterval(computeSchedule(card, 'easy').interval);
+
   // Render Photo if exists
   if (card.photo) {
     elCardPhotoContainer.classList.remove('hidden');
@@ -450,42 +598,42 @@ function updateControlsFooterVisibility(isFlipped) {
   }
 }
 
-// --- Spaced Repetition Choices Scheduler ---
-async function scheduleReview(intervalDays, statusType, dragDirectionAnim = '') {
+// --- Spaced Repetition Grading (SM-2) ---
+async function scheduleReview(grade, dragDirectionAnim = '') {
   if (state.filteredDeck.length === 0) return;
   const currentCard = state.filteredDeck[state.currentIndex];
-  
-  let nextReviewTimestamp = 0;
-  if (intervalDays > 0) {
-    nextReviewTimestamp = Date.now() + intervalDays * 24 * 60 * 60 * 1000;
-  }
-
   const cardInMaster = state.cards.find(c => c.id === currentCard.id);
-  if (cardInMaster) {
-    cardInMaster.status = statusType;
-    cardInMaster.nextReview = nextReviewTimestamp;
-    await syncLocalDeckToCloud();
-  }
+  if (!cardInMaster) return;
+
+  // Snapshot for one-tap Undo (mis-swipes happen!)
+  lastReviewSnapshot = {
+    cardId: cardInMaster.id,
+    prev: {
+      status: cardInMaster.status,
+      nextReview: cardInMaster.nextReview,
+      interval: cardInMaster.interval || 0,
+      ease: cardInMaster.ease || 2.5
+    },
+    index: state.currentIndex
+  };
+
+  const result = computeSchedule(cardInMaster, grade);
+  cardInMaster.ease = result.ease;
+  cardInMaster.interval = result.interval;
+  cardInMaster.status = result.status;
+  cardInMaster.nextReview = result.nextReview;
+  await syncLocalDeckToCloud();
 
   // Trigger dynamic swipe animation exits
-  let animClass = 'swipe-right-anim'; // default fallback
-  if (dragDirectionAnim) {
-    animClass = `${dragDirectionAnim}-anim`;
-  } else {
-    // Button triggers mapping
-    if (intervalDays === 0) animClass = 'swipe-left-anim';
-    else if (intervalDays === 1) animClass = 'swipe-up-anim';
-    else if (intervalDays === 3) animClass = 'swipe-down-anim';
-    else if (intervalDays === 7) animClass = 'swipe-right-anim';
-  }
-
+  const animMap = { again: 'swipe-left', hard: 'swipe-up', good: 'swipe-down', easy: 'swipe-right' };
+  const animClass = `${dragDirectionAnim || animMap[grade]}-anim`;
   elCard.classList.add(animClass);
-  
+
   setTimeout(() => {
     elCard.classList.remove('swipe-left-anim', 'swipe-right-anim', 'swipe-up-anim', 'swipe-down-anim');
-    
+
     // Check queues indexes
-    if (intervalDays === 0) {
+    if (grade === 'again') {
       if (state.filteredDeck.length > 1) {
         state.currentIndex = (state.currentIndex + 1) % state.filteredDeck.length;
       }
@@ -496,18 +644,43 @@ async function scheduleReview(intervalDays, statusType, dragDirectionAnim = '') 
     }
 
     renderApp();
+    showUndoButton();
   }, 250);
 }
 
+// --- Undo Last Review ---
+function showUndoButton() {
+  if (!lastReviewSnapshot) return;
+  elUndoBtn.classList.remove('hidden');
+  clearTimeout(undoHideTimer);
+  undoHideTimer = setTimeout(() => elUndoBtn.classList.add('hidden'), 6000);
+}
+
+async function undoLastReview() {
+  if (!lastReviewSnapshot) return;
+  const card = state.cards.find(c => c.id === lastReviewSnapshot.cardId);
+  if (card) Object.assign(card, lastReviewSnapshot.prev);
+  state.currentIndex = lastReviewSnapshot.index;
+  lastReviewSnapshot = null;
+  clearTimeout(undoHideTimer);
+  elUndoBtn.classList.add('hidden');
+  await syncLocalDeckToCloud();
+  renderApp();
+  showToast('Last review undone — the card is back.', 'success');
+}
+
 async function resetActiveSession() {
+  if (!confirm('Reset ALL learning progress? Every card goes back to "new" and your whole library returns to the review queue.')) return;
   state.cards.forEach(c => {
     c.status = 'new';
     c.nextReview = 0;
+    c.interval = 0;
+    c.ease = 2.5;
   });
   await syncLocalDeckToCloud();
   state.currentIndex = 0;
   renderApp();
-  alert('All masteries reset! The entire library is now back in your active queue.');
+  showToast('All progress reset — the entire library is back in your queue.', 'success');
 }
 
 // --- Touch & Swipe Gestures Logic ( cardinal directions - screenshot 2 ) ---
@@ -587,12 +760,12 @@ function initGestureTracking() {
     if (Math.max(absX, absY) > SWIPE_THRESHOLD) {
       if (absX > absY) {
         // Horizontal actions
-        if (moveX > 0) scheduleReview(7, 'mastered', 'swipe-right'); // Swipe Right -> 7d
-        else scheduleReview(0, 'review', 'swipe-left');             // Swipe Left -> Again
+        if (moveX > 0) scheduleReview('easy', 'swipe-right');  // Swipe Right -> Easy
+        else scheduleReview('again', 'swipe-left');            // Swipe Left -> Again
       } else {
         // Vertical actions
-        if (moveY < 0) scheduleReview(1, 'review', 'swipe-up');      // Swipe Up -> 1d
-        else scheduleReview(3, 'review', 'swipe-down');             // Swipe Down -> 3d
+        if (moveY < 0) scheduleReview('hard', 'swipe-up');     // Swipe Up -> Hard
+        else scheduleReview('good', 'swipe-down');             // Swipe Down -> Good
       }
     } else {
       elCard.style.transform = isFlipped ? 'rotateY(180deg)' : 'translate3d(0, 0, 0)';
@@ -687,6 +860,7 @@ async function deleteCard(id) {
     state.cards = state.cards.filter(c => c.id !== id);
     await syncLocalDeckToCloud();
     renderApp();
+    showToast('Card deleted.', 'info');
   }
 }
 
@@ -704,7 +878,7 @@ function startEditCard(id) {
   document.getElementById('input-edit-id').value = card.id;
   document.getElementById('input-word').value = card.word;
   document.getElementById('input-type').value = card.type || '';
-  document.getElementById('input-category').value = card.category;
+  populateCategorySelect(card.category);
   document.getElementById('input-pronunciation').value = card.pronunciation || '';
   document.getElementById('input-language').value = card.language || 'en-US';
   document.getElementById('input-meaning').value = card.meaning;
@@ -731,7 +905,9 @@ function startEditCard(id) {
 function cancelCardEdit() {
   state.editingCardId = null;
   elAddCardForm.reset();
-  
+  elNewCategoryInput.classList.add('hidden');
+  elNewCategoryInput.value = '';
+
   elManagerTitle.innerText = "Deck Manager";
   elFormActionTitle.innerText = "Create New Flashcard";
   elSubmitFormBtn.innerText = "Save to Flashcards";
@@ -750,7 +926,15 @@ async function handleAddCardFormSubmit(e) {
   
   const word = document.getElementById('input-word').value.trim();
   const type = document.getElementById('input-type').value.trim();
-  const category = document.getElementById('input-category').value;
+  let category = elCategorySelect.value;
+  if (category === '__new__') {
+    category = elNewCategoryInput.value.trim();
+    if (!category) {
+      showToast('Please type a name for your new category first.', 'error');
+      elNewCategoryInput.focus();
+      return;
+    }
+  }
   const pronunciation = document.getElementById('input-pronunciation').value.trim();
   const language = document.getElementById('input-language').value;
   const meaning = document.getElementById('input-meaning').value.trim();
@@ -772,7 +956,7 @@ async function handleAddCardFormSubmit(e) {
       
       state.currentIndex = 0;
       await syncLocalDeckToCloud();
-      alert(`"${word}" updated successfully!`);
+      showToast(`"${word}" updated successfully!`, 'success');
     }
     cancelCardEdit();
   } else {
@@ -794,7 +978,8 @@ async function handleAddCardFormSubmit(e) {
     state.cards.unshift(newCard);
     await syncLocalDeckToCloud();
     elAddCardForm.reset();
-    alert(`"${word}" saved successfully!`);
+    populateCategorySelect(category); // keep the just-used category selected for quick batch adding
+    showToast(`"${word}" saved successfully!`, 'success');
   }
 
   renderApp();
@@ -803,7 +988,7 @@ async function handleAddCardFormSubmit(e) {
 // --- Import & Export Controller ---
 function exportDeck() {
   if (state.cards.length === 0) {
-    alert('There are no cards in your library to export.');
+    showToast('There are no cards in your library to export.', 'info');
     return;
   }
 
@@ -823,48 +1008,58 @@ function importDeck(event) {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = async function(e) {
+  reader.onload = function(e) {
     try {
       const imported = JSON.parse(e.target.result);
-      
+
       if (!Array.isArray(imported)) {
         throw new Error('Import format must be a JSON array of cards.');
       }
-      
+
       const isValid = imported.every(c => c.word && c.meaning);
       if (!isValid) {
         throw new Error('All imported cards must contain at least "word" and "meaning" fields.');
       }
 
-      if (confirm(`You are importing ${imported.length} flashcards. Would you like to merge them with your existing deck, or overwrite it completely?\n\n- Click OK to MERGE\n- Click CANCEL to OVERWRITE`)) {
-        const existingWords = new Set(state.cards.map(c => c.word.toLowerCase().trim()));
-        const uniqueImport = imported.filter(c => !existingWords.has(c.word.toLowerCase().trim()));
-        
-        const mappedImport = uniqueImport.map(c => ({
-          ...c,
-          id: c.id || `custom-${Date.now()}-${Math.random()}`,
-          status: c.status || 'new',
-          nextReview: c.nextReview || 0
-        }));
-        
-        state.cards = [...mappedImport, ...state.cards];
-      } else {
-        state.cards = imported.map((c, i) => ({
-          ...c,
-          id: c.id || `custom-${Date.now()}-${i}`,
-          status: c.status || 'new',
-          nextReview: c.nextReview || 0
-        }));
-      }
-
-      await syncLocalDeckToCloud();
-      renderApp();
-      alert('Flashcards imported successfully!');
+      // Explicit 3-choice modal — a dismissed dialog must NEVER wipe the library
+      pendingImportCards = imported;
+      document.getElementById('modal-import-message').innerText =
+        `You are importing ${imported.length} flashcards. Merge them into your current deck, or replace your entire library with them?`;
+      elImportModal.classList.remove('hidden');
     } catch (err) {
-      alert(`Import Failed: ${err.message}`);
+      showToast(`Import failed: ${err.message}`, 'error');
     }
   };
   reader.readAsText(file);
+  event.target.value = ''; // allow re-importing the same file later
+}
+
+async function applyImport(mode) {
+  elImportModal.classList.add('hidden');
+  if (!pendingImportCards) return;
+
+  const imported = pendingImportCards.map((c, i) =>
+    normalizeCard({ ...c, id: c.id || `custom-${Date.now()}-${i}` })
+  );
+  pendingImportCards = null;
+
+  if (mode === 'merge') {
+    const existingWords = new Set(state.cards.map(c => c.word.toLowerCase().trim()));
+    const uniqueImport = imported.filter(c => !existingWords.has(c.word.toLowerCase().trim()));
+    state.cards = [...uniqueImport, ...state.cards];
+    showToast(`${uniqueImport.length} new cards merged into your library.`, 'success');
+  } else {
+    state.cards = imported;
+    showToast(`Library replaced with ${imported.length} imported cards.`, 'success');
+  }
+
+  await syncLocalDeckToCloud();
+  renderApp();
+}
+
+function cancelImport() {
+  pendingImportCards = null;
+  elImportModal.classList.add('hidden');
 }
 
 // --- Firebase Authentication & Interface UI ( Cloud Sync - registration/login ) ---
@@ -952,7 +1147,7 @@ async function handleAuthFormSubmit(e) {
   e.preventDefault();
   
   if (!isFirebaseConfigured) {
-    alert("Firebase is not fully configured yet! Please enter your real credentials in your firebase-config.js file on your laptop to enable live cloud registrations.");
+    showToast("Cloud sync is not configured — add your Firebase credentials to firebase-config.js first.", 'error');
     return;
   }
 
@@ -979,17 +1174,17 @@ async function handleAuthFormSubmit(e) {
         await syncLocalDeckToCloud();
       }
       
-      alert("Registration completed successfully! Welcome to RecallGlass Cloud!");
+      showToast("Registration complete! Welcome to RecallGlass Cloud!", 'success');
     } else {
       // Sign In workflow
       await signInFn(auth, email, password);
-      alert("Logged in successfully!");
+      showToast("Logged in successfully!", 'success');
     }
-    
+
     closeAuthDrawer();
   } catch (error) {
     console.error('Firebase Auth failure:', error);
-    alert(`Authentication Failed: ${error.message}`);
+    showToast(`Authentication failed: ${error.message}`, 'error');
   } finally {
     elAuthSubmitBtn.removeAttribute('disabled');
     elAuthSubmitBtn.innerText = state.activeAuthTab === 'login' ? "Sign In" : "Register Profile";
@@ -1002,10 +1197,75 @@ async function handleLogout() {
     try {
       await signOutFn(auth);
       closeAuthDrawer();
-      alert("Logged out successfully.");
+      showToast("Logged out successfully.", 'info');
     } catch (e) {
-      alert("Logout failed: " + e.message);
+      showToast("Logout failed: " + e.message, 'error');
     }
+  }
+}
+
+// --- Password Reset ---
+async function handleForgotPassword() {
+  if (!isFirebaseConfigured) {
+    showToast('Cloud sync is not configured on this deployment.', 'error');
+    return;
+  }
+  const email = document.getElementById('input-auth-email').value.trim();
+  if (!email) {
+    showToast('Type your email address above first, then tap "Forgot password?" again.', 'info');
+    document.getElementById('input-auth-email').focus();
+    return;
+  }
+  try {
+    await resetPasswordFn(auth, email);
+    showToast(`Password reset link sent to ${email} — check your inbox.`, 'success');
+  } catch (e) {
+    showToast(`Could not send reset email: ${e.message}`, 'error');
+  }
+}
+
+// --- Dictionary Auto-fill (free dictionaryapi.dev, English words) ---
+async function autofillFromDictionary() {
+  const word = document.getElementById('input-word').value.trim();
+  if (!word) {
+    showToast('Type a word first, then tap ✨ to auto-fill.', 'info');
+    return;
+  }
+
+  elAutofillBtn.disabled = true;
+  elAutofillBtn.innerText = '…';
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    if (!res.ok) throw new Error(`"${word}" was not found in the dictionary.`);
+    const data = await res.json();
+    const entry = data[0];
+    const meaningBlock = (entry.meanings && entry.meanings[0]) || null;
+    const definitions = (meaningBlock && meaningBlock.definitions) || [];
+
+    const typeInput = document.getElementById('input-type');
+    const pronInput = document.getElementById('input-pronunciation');
+    const meaningInput = document.getElementById('input-meaning');
+    const exampleInput = document.getElementById('input-example');
+    const originInput = document.getElementById('input-origin');
+
+    if (meaningBlock && meaningBlock.partOfSpeech && !typeInput.value) {
+      typeInput.value = meaningBlock.partOfSpeech.charAt(0).toUpperCase() + meaningBlock.partOfSpeech.slice(1);
+    }
+    const phonetic = entry.phonetic || ((entry.phonetics || []).find(p => p.text) || {}).text;
+    if (phonetic && !pronInput.value) pronInput.value = phonetic;
+    if (definitions[0] && definitions[0].definition && !meaningInput.value) {
+      meaningInput.value = definitions[0].definition;
+    }
+    const withExample = definitions.find(d => d.example);
+    if (withExample && !exampleInput.value) exampleInput.value = withExample.example;
+    if (entry.origin && !originInput.value) originInput.value = entry.origin;
+
+    showToast(`Dictionary details loaded for "${entry.word}".`, 'success');
+  } catch (e) {
+    showToast(e.message.includes('not found') ? e.message : 'Dictionary lookup failed — check your internet connection.', 'error');
+  } finally {
+    elAutofillBtn.disabled = false;
+    elAutofillBtn.innerText = '✨';
   }
 }
 
@@ -1066,11 +1326,12 @@ function setupEventListeners() {
   });
   
   // SRS buttons
-  elBtnSRSAgain.addEventListener('click', () => scheduleReview(0, 'review')); 
-  elBtnSRS1Day.addEventListener('click', () => scheduleReview(1, 'review'));  
-  elBtnSRS3Days.addEventListener('click', () => scheduleReview(3, 'review')); 
-  elBtnSRS7Days.addEventListener('click', () => scheduleReview(7, 'mastered')); 
+  elBtnSRSAgain.addEventListener('click', () => scheduleReview('again'));
+  elBtnSRS1Day.addEventListener('click', () => scheduleReview('hard'));
+  elBtnSRS3Days.addEventListener('click', () => scheduleReview('good'));
+  elBtnSRS7Days.addEventListener('click', () => scheduleReview('easy'));
 
+  elUndoBtn.addEventListener('click', undoLastReview);
   elResetSessionBtn.addEventListener('click', resetActiveSession);
 
   // Photo upload triggers
@@ -1152,22 +1413,35 @@ function setupEventListeners() {
 
   elHeaderManagerBtn.addEventListener('click', () => {
     switchDrawerTab('create'); // Open in form creator default
+    populateCategorySelect(elCategorySelect.value);
     openManagerDrawer();
   });
   
   elCloseManagerBtn.addEventListener('click', closeManagerDrawer);
   elCancelEditBtn.addEventListener('click', cancelCardEdit);
 
-  // Categories Navigation pills
-  elCategoryPills.forEach(pill => {
-    pill.addEventListener('click', () => {
-      elCategoryPills.forEach(p => p.classList.remove('active'));
-      pill.classList.add('active');
-      state.activeCategory = pill.getAttribute('data-category');
-      state.currentIndex = 0; 
-      renderApp();
-    });
+  // (Category pills are rendered dynamically with their own listeners — see renderCategoryPills)
+
+  // New Category inline input toggle
+  elCategorySelect.addEventListener('change', () => {
+    if (elCategorySelect.value === '__new__') {
+      elNewCategoryInput.classList.remove('hidden');
+      elNewCategoryInput.focus();
+    } else {
+      elNewCategoryInput.classList.add('hidden');
+    }
   });
+
+  // Dictionary auto-fill
+  elAutofillBtn.addEventListener('click', autofillFromDictionary);
+
+  // Password reset
+  elForgotPasswordBtn.addEventListener('click', handleForgotPassword);
+
+  // Import choice modal
+  elImportMergeBtn.addEventListener('click', () => applyImport('merge'));
+  elImportOverwriteBtn.addEventListener('click', () => applyImport('overwrite'));
+  elImportCancelBtn.addEventListener('click', cancelImport);
 
   // Form & Searches
   elAddCardForm.addEventListener('submit', handleAddCardFormSubmit);
@@ -1216,15 +1490,39 @@ function escapeHTML(str) {
   );
 }
 
+// Toast notifications (non-blocking replacement for alert())
+function showToast(message, type = 'info') {
+  if (!elToastContainer) { console.log(`[Toast:${type}]`, message); return; }
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  elToastContainer.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 400);
+  }, 3500);
+}
+
+// Voice list cache — getVoices() is often empty until 'voiceschanged' fires
+let cachedVoices = [];
+if ('speechSynthesis' in window) {
+  cachedVoices = window.speechSynthesis.getVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', () => {
+    cachedVoices = window.speechSynthesis.getVoices();
+  });
+}
+
 // Pronounce text to speech with window.speechSynthesis
 function speakWord(text, lang = 'en-US') {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel(); // cancel current speech
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lang;
-    
-    // Select matching voice
-    const voices = window.speechSynthesis.getVoices();
+
+    // Select matching voice from the cached list
+    if (cachedVoices.length === 0) cachedVoices = window.speechSynthesis.getVoices();
+    const voices = cachedVoices;
     let voice = voices.find(v => v.lang.startsWith(lang));
     if (!voice) {
       const shortLang = lang.split('-')[0];

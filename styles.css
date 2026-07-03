@@ -1625,4 +1625,183 @@ body {
   background: rgba(255, 255, 255, 0.06) !important;
 }
 
+/* ==========================================================================
+   v1.6 — Toasts, Import Modal, Undo, Auto-fill & Auth Extras
+   ========================================================================== */
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  bottom: calc(110px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 300;
+  width: min(92vw, 420px);
+  pointer-events: none;
+}
+
+.toast {
+  background: rgba(20, 26, 42, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 11px 18px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-bright);
+  box-shadow: 0 8px 30px var(--glass-shadow);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s var(--ease-out-expo), transform 0.3s var(--ease-out-expo);
+  text-align: center;
+  max-width: 100%;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success { border-color: var(--color-success-glow); box-shadow: 0 8px 30px var(--color-success-glow); }
+.toast-error   { border-color: var(--color-danger-glow);  box-shadow: 0 8px 30px var(--color-danger-glow); }
+
+/* Import choice modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 9, 18, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 280;
+  padding: 24px;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal-box {
+  border-radius: 22px;
+  padding: 24px;
+  width: min(100%, 380px);
+  text-align: center;
+}
+
+.modal-box h3 {
+  font-size: 17px;
+  color: var(--text-bright);
+  margin-bottom: 10px;
+}
+
+.modal-box p {
+  font-size: 13px;
+  color: var(--text-normal);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, hsl(350, 75%, 52%), hsl(350, 75%, 42%));
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-danger:hover { filter: brightness(1.1); }
+
+/* Undo last review */
+.undo-btn {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-bright);
+  background: rgba(20, 26, 42, 0.85);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  z-index: 60;
+  transition: var(--transition-fast);
+  animation: undo-pop 0.35s var(--ease-elastic);
+}
+
+.undo-btn svg { width: 15px; height: 15px; }
+
+.undo-btn:hover {
+  border-color: var(--accent-secondary);
+  box-shadow: 0 0 16px var(--accent-secondary-glow);
+}
+
+@keyframes undo-pop {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* Word input + dictionary auto-fill */
+.input-with-btn {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.input-with-btn input { flex: 1; min-width: 0; }
+
+.autofill-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-bright);
+  font-size: 16px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.autofill-btn:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 14px var(--accent-primary-glow);
+}
+
+.autofill-btn:disabled { opacity: 0.5; cursor: wait; }
+
+/* Forgot password link */
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: right;
+  width: 100%;
+  margin-top: -6px;
+}
+
+.link-btn:hover { text-decoration: underline; }
+
 

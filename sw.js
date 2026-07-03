@@ -2,13 +2,18 @@
    RecallGlass — Service Worker for 100% Offline Mobile Operation
    ========================================================================== */
 
-const CACHE_NAME = 'recall-glass-cache-v2';
+const CACHE_NAME = 'recall-glass-cache-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './styles.css',
   './app.js',
-  './default_cards.json'
+  './firebase-config.js',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-512-maskable.png',
+  './icons/apple-touch-icon.png'
 ];
 
 // 1. Install Event — Pre-cache static assets
