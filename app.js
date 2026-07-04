@@ -250,7 +250,10 @@ function saveTombstones() {
 }
 
 function isTombstoned(card) {
-  return (deletedTombstones[card.id] || 0) >= (card.updatedAt || 0);
+  const ts = deletedTombstones[card.id];
+  // Only an actual tombstone counts — untouched cards have updatedAt 0,
+  // and a missing tombstone must never satisfy ts >= 0
+  return ts !== undefined && ts >= (card.updatedAt || 0);
 }
 
 /* ==========================================================================
@@ -600,7 +603,23 @@ async function fetchCloudDeck() {
     const metaSnap = await getDocFn(metaDocRef());
     const meta = metaSnap.exists() ? metaSnap.data() : null;
 
-    // 1) Load cloud cards — migrating the legacy single-document schema if found
+    // 1) Merge meta-level state FIRST — every cloud write below sends
+    //    metaPayload(), so tombstones/review log must be merged before
+    //    any write or the cloud copies get clobbered by stale local state
+    const cloudDeleted = (meta && meta.deleted) || {};
+    for (const id in cloudDeleted) {
+      deletedTombstones[id] = Math.max(deletedTombstones[id] || 0, cloudDeleted[id]);
+    }
+    saveTombstones();
+
+    const cloudLog = (meta && meta.reviewLog) || {};
+    for (const day in cloudLog) {
+      reviewLog[day] = Math.max(reviewLog[day] || 0, cloudLog[day]);
+    }
+    saveReviewLog();
+    if (meta && meta.dailyGoal > 0) setDailyGoal(meta.dailyGoal);
+
+    // 2) Load cloud cards — migrating the legacy single-document schema if found
     let cloudCards = [];
     if (meta && Array.isArray(meta.cards) && meta.cards.length > 0) {
       console.log('[Firestore] Legacy deck found — migrating to per-card documents...');
@@ -612,13 +631,6 @@ async function fetchCloudDeck() {
       const snap = await getDocsFn(collectionFn(db, 'users', state.currentUser.uid, 'cards'));
       cloudCards = snap.docs.map(d => normalizeCard(d.data()));
     }
-
-    // 2) Merge deletion tombstones (newest deletion wins everywhere)
-    const cloudDeleted = (meta && meta.deleted) || {};
-    for (const id in cloudDeleted) {
-      deletedTombstones[id] = Math.max(deletedTombstones[id] || 0, cloudDeleted[id]);
-    }
-    saveTombstones();
 
     // 3) Merge local mirror against cloud, per card, by updatedAt
     let localCards = [];
@@ -632,8 +644,11 @@ async function fetchCloudDeck() {
     localCards.forEach(lc => {
       const cc = byId.get(lc.id);
       if (!cc) {
+        // Never-studied default seeds auto-created while logged out must not
+        // resurrect into an existing account on every fresh device
+        const isPristineSeed = lc.id.startsWith('seed-') && !(lc.updatedAt > 0) && cloudCards.length > 0;
         // Local-only card: new here, unless another device deleted it
-        if (!isTombstoned(lc)) {
+        if (!isTombstoned(lc) && !isPristineSeed) {
           byId.set(lc.id, lc);
           toUpload.push(lc);
         }
@@ -656,14 +671,6 @@ async function fetchCloudDeck() {
       console.log(`[Firestore] Uploading ${toUpload.length} newer local card(s) to cloud.`);
       cloudWriteCards(toUpload);
     }
-
-    // 5) Merge review log (higher count per day wins) & adopt cloud daily goal
-    const cloudLog = (meta && meta.reviewLog) || {};
-    for (const day in cloudLog) {
-      reviewLog[day] = Math.max(reviewLog[day] || 0, cloudLog[day]);
-    }
-    saveReviewLog();
-    if (meta && meta.dailyGoal > 0) setDailyGoal(meta.dailyGoal);
 
     // Mirror locally
     saveLocalDeck();
